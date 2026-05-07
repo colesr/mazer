@@ -1,5 +1,5 @@
 // =============================================
-// A MAZE ZING! - Large Procedural Mazes
+// A MAZE ZING! - Large Procedural + Shield + Shooting
 // =============================================
 
 let canvas, ctx, bgCanvas, bgCtx;
@@ -13,13 +13,19 @@ let currentLevel = parseInt(localStorage.getItem('mazeLevel') || '1');
 let aiEnabled = true;
 let ai = { x: 35, y: 25 };
 
-let projectiles = [], powerups = [];
+let projectiles = [], playerProjectiles = [], powerups = [];
 let playerSpeed = 1, hasStickyGun = false, lastPlayerMove = 0;
+
+let shieldActive = false;
+let shieldEndTime = 0;
+const MAX_SHIELD_TIME = 15000;
 
 const CELL_SIZE = 20;
 const COLS = 40;
 const ROWS = 30;
 let currentSeed = Date.now();
+
+let mouseX = 400, mouseY = 300;
 
 // ============== INIT ==============
 document.addEventListener('DOMContentLoaded', () => {
@@ -96,7 +102,7 @@ function startMusic() {
     }, 280);
 }
 
-// ============== PROCEDURAL MAZE (LARGE) ==============
+// ============== PROCEDURAL MAZE ==============
 function seededRandom(seed) {
     let x = Math.sin(seed++) * 10000;
     return x - Math.floor(x);
@@ -124,7 +130,6 @@ function generateMaze(level = 1, seed = null) {
     }
     carve(1, 1);
 
-    // More rooms for larger maze
     const roomCount = 6 + Math.floor(level / 2);
     for (let i = 0; i < roomCount; i++) {
         const rx = 4 + Math.floor(rng() * (COLS - 12));
@@ -136,7 +141,6 @@ function generateMaze(level = 1, seed = null) {
                 maze[y][x] = 0;
     }
 
-    // High complexity
     const complexity = 15 + level * 10;
     for (let i = 0; i < complexity; i++) {
         const x = 3 + Math.floor(rng() * (COLS-6));
@@ -203,13 +207,12 @@ function isSolvable() {
     return false;
 }
 
-// ============== THEMES ==============
 function getTheme(level) {
     const themes = [
-        {wall: '#440044', path: '#0a001f', name: "NEON VOID"},
-        {wall: '#004400', path: '#001a00', name: "TOXIC JUNGLE"},
-        {wall: '#440000', path: '#1a0000', name: "CRIMSON DEPTHS"},
-        {wall: '#444400', path: '#1a1a00', name: "GOLDEN RUINS"}
+        {wall: '#440044', path: '#0a001f'},
+        {wall: '#004400', path: '#001a00'},
+        {wall: '#440000', path: '#1a0000'},
+        {wall: '#444400', path: '#1a1a00'}
     ];
     return themes[(level-1) % themes.length];
 }
@@ -234,10 +237,28 @@ function draw() {
         ctx.fillRect(p.x*CELL_SIZE+6, p.y*CELL_SIZE+6, CELL_SIZE-12, CELL_SIZE-12);
     });
 
+    // Player
     ctx.fillStyle = '#00ffff';
     ctx.beginPath();
     ctx.arc(player.x*CELL_SIZE + CELL_SIZE/2, player.y*CELL_SIZE + CELL_SIZE/2, CELL_SIZE/2 - 4, 0, Math.PI*2);
     ctx.fill();
+
+    // Shield
+    if (shieldActive) {
+        const remaining = (shieldEndTime - Date.now()) / MAX_SHIELD_TIME;
+        if (remaining > 0) {
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = '#00ffff';
+            ctx.strokeStyle = `rgba(0, 255, 255, ${remaining * 0.8})`;
+            ctx.lineWidth = 8;
+            ctx.beginPath();
+            ctx.arc(player.x*CELL_SIZE + CELL_SIZE/2, player.y*CELL_SIZE + CELL_SIZE/2, CELL_SIZE/2 + 10, 0, Math.PI*2);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        } else {
+            shieldActive = false;
+        }
+    }
 
     if (aiEnabled) {
         ctx.shadowBlur = 25; ctx.shadowColor = '#ff0088';
@@ -246,10 +267,15 @@ function draw() {
         ctx.shadowBlur = 0;
     }
 
+    // Enemy projectiles
     ctx.shadowBlur = 12; ctx.shadowColor = '#ff4400';
     ctx.fillStyle = '#ff4400';
     projectiles.forEach(p => ctx.fillRect(p.x-5, p.y-5, 10, 10));
     ctx.shadowBlur = 0;
+
+    // Player projectiles
+    ctx.fillStyle = '#00ffdd';
+    playerProjectiles.forEach(p => ctx.fillRect(p.x-4, p.y-4, 8, 8));
 
     ctx.textAlign = 'center';
     if (gameWon) {
@@ -341,7 +367,7 @@ function updateAI() {
         });
     }
 
-    if (Math.floor(ai.x) === player.x && Math.floor(ai.y) === player.y) {
+    if (Math.floor(ai.x) === player.x && Math.floor(ai.y) === player.y && !shieldActive) {
         gameOver = true;
         clearInterval(timerInterval);
         setTimeout(resetGame, 1400);
@@ -356,7 +382,7 @@ function updateProjectiles() {
         const gx = Math.floor(p.x / CELL_SIZE);
         const gy = Math.floor(p.y / CELL_SIZE);
 
-        if (gx === player.x && gy === player.y) {
+        if (gx === player.x && gy === player.y && !shieldActive) {
             gameOver = true;
             clearInterval(timerInterval);
             setTimeout(resetGame, 1400);
@@ -369,9 +395,34 @@ function updateProjectiles() {
     }
 }
 
+function updatePlayerProjectiles() {
+    for (let i = playerProjectiles.length - 1; i >= 0; i--) {
+        const p = playerProjectiles[i];
+        p.x += p.dx;
+        p.y += p.dy;
+        p.life = (p.life || 120) - 1;
+
+        const gx = Math.floor(p.x / CELL_SIZE);
+        const gy = Math.floor(p.y / CELL_SIZE);
+
+        if (aiEnabled && Math.floor(ai.x) === gx && Math.floor(ai.y) === gy) {
+            ai.x = COLS - 6;
+            ai.y = ROWS - 6;
+            playerProjectiles.splice(i, 1);
+            playNote(200, 300, 'sawtooth', 0.4);
+            continue;
+        }
+
+        if (p.life <= 0 || !isOpen(gx, gy)) {
+            playerProjectiles.splice(i, 1);
+        }
+    }
+}
+
 function gameLoop() {
     updateAI();
     updateProjectiles();
+    updatePlayerProjectiles();
     draw();
 }
 
@@ -387,6 +438,9 @@ function startTimer() {
 function resetGame(seed = null) {
     gameWon = false; gameOver = false;
     playerSpeed = 1; hasStickyGun = false;
+    shieldActive = false;
+    playerProjectiles = [];
+    projectiles = [];
     generateMaze(currentLevel, seed);
     startTimer();
     draw();
@@ -395,6 +449,53 @@ function resetGame(seed = null) {
 function toggleAI() {
     aiEnabled = document.getElementById('aiCheckbox').checked;
 }
+
+function shootPlayerProjectile() {
+    const centerX = player.x * CELL_SIZE + CELL_SIZE / 2;
+    const centerY = player.y * CELL_SIZE + CELL_SIZE / 2;
+
+    const dx = mouseX - centerX;
+    const dy = mouseY - centerY;
+    const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+
+    playerProjectiles.push({
+        x: centerX,
+        y: centerY,
+        dx: (dx / dist) * 9,
+        dy: (dy / dist) * 9,
+        life: 120
+    });
+
+    playNote(600, 80, 'square', 0.3);
+}
+
+// ============== MOUSE CONTROLS ==============
+canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    mouseX = e.clientX - rect.left;
+    mouseY = e.clientY - rect.top;
+});
+
+canvas.addEventListener('mousedown', (e) => {
+    if (gameWon || gameOver) return;
+    if (e.button === 0) shootPlayerProjectile();
+});
+
+document.addEventListener('mousedown', (e) => {
+    if (e.button === 2 && !gameWon && !gameOver) {
+        const now = Date.now();
+        if (now > shieldEndTime) {
+            shieldActive = true;
+            shieldEndTime = now + MAX_SHIELD_TIME;
+        }
+    }
+});
+
+document.addEventListener('mouseup', (e) => {
+    if (e.button === 2) shieldActive = false;
+});
+
+canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 // ============== INIT GAME ==============
 function initGame() {
@@ -419,14 +520,6 @@ function initGame() {
             case 'arrowdown': case 's': movePlayer(0, 1); break;
             case 'arrowleft': case 'a': movePlayer(-1, 0); break;
             case 'arrowright': case 'd': movePlayer(1, 0); break;
-        }
-    });
-
-    canvas.addEventListener('click', () => {
-        if (hasStickyGun && aiEnabled) {
-            ai.x = player.x; ai.y = player.y;
-            hasStickyGun = false;
-            playNote(900, 120, 'square', 0.4);
         }
     });
 }
