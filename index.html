@@ -20,17 +20,9 @@
             transform-origin: top center;
         }
 
-        #bg-canvas {
-            position: absolute; top: 0; left: 0;
-            width: 100%; height: 100%; z-index: 0; opacity: 0.6;
-        }
+        #bg-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; opacity: 0.6; }
 
-        h1 {
-            font-size: 52px; margin: 8px 0 12px; z-index: 5;
-            text-shadow: 0 0 30px #ff00ff;
-            animation: titleGlow 2s infinite alternate;
-        }
-
+        h1 { font-size: 52px; margin: 8px 0 12px; z-index: 5; text-shadow: 0 0 30px #ff00ff; animation: titleGlow 2s infinite alternate; }
         @keyframes titleGlow {
             from { text-shadow: 0 0 20px #ff00ff, 0 0 40px #00ffff; }
             to   { text-shadow: 0 0 40px #ff00ff, 0 0 70px #ffff00; }
@@ -44,18 +36,10 @@
             background: #0a001f;
         }
 
-        #hud {
-            z-index: 4; display: flex; gap: 30px; margin: 12px 0; font-size: 20px;
-        }
+        #hud { z-index: 4; display: flex; gap: 30px; margin: 12px 0; font-size: 20px; }
+        .stat { background: rgba(0,0,0,0.7); padding: 10px 20px; border: 2px solid #00ffff; }
 
-        .stat {
-            background: rgba(0,0,0,0.7); padding: 10px 20px; border: 2px solid #00ffff;
-        }
-
-        button, label {
-            font-family: inherit;
-            cursor: pointer;
-        }
+        button, label { font-family: inherit; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -71,10 +55,7 @@
     </div>
 
     <div style="z-index:4; margin-bottom:15px;">
-        <label>
-            <input type="checkbox" id="aiCheckbox" checked onchange="toggleAI()">
-            🤖 ENEMY AI
-        </label>
+        <label><input type="checkbox" id="aiCheckbox" checked onchange="toggleAI()"> 🤖 ENEMY AI</label>
         <button onclick="resetGame()" style="margin-left:25px; padding:10px 20px;">NEW MAZE</button>
     </div>
 
