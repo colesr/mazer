@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hard Maze Escape</title>
+    <title>Maze Race • Beat the AI</title>
     <style>
         body {
             margin: 0;
@@ -21,22 +21,29 @@
             border: 5px solid #ff4444;
             image-rendering: pixelated;
             background: #0f0f0f;
-            box-shadow: 0 0 20px rgba(255, 68, 68, 0.5);
+            box-shadow: 0 0 25px rgba(255, 68, 68, 0.6);
         }
         #hud {
             display: flex;
             justify-content: space-between;
-            width: 600px;
-            margin: 15px 0;
+            width: 620px;
+            margin: 15px 0 8px;
             font-size: 20px;
+            gap: 12px;
         }
         .stat {
             background: #333;
-            padding: 8px 16px;
+            padding: 8px 18px;
             border-radius: 8px;
+            white-space: nowrap;
+        }
+        #controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 10px;
         }
         button {
-            margin-top: 10px;
             padding: 12px 24px;
             font-size: 18px;
             background: #ff4444;
@@ -45,22 +52,78 @@
             border-radius: 8px;
             cursor: pointer;
         }
-        button:hover {
-            background: #ff6666;
+        button:hover { background: #ff6666; }
+        #ai-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        #modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #222;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+            z-index: 1000;
+            max-width: 420px;
+            width: 90%;
+            text-align: center;
+            color: white;
+        }
+        #modal h2 { margin: 0 0 15px; color: #ffd700; }
+        .time-item {
+            background: #333;
+            margin: 4px 0;
+            padding: 6px 12px;
+            border-radius: 6px;
+            text-align: left;
+            font-family: monospace;
         }
     </style>
 </head>
 <body>
-    <h1>🔥 HARD MAZE ESCAPE</h1>
+    <h1>🔥 MAZE RACE</h1>
+    
     <div id="hud">
         <div class="stat">Time: <span id="timer">0.0</span>s</div>
         <div class="stat">Best: <span id="best">—</span>s</div>
+        <div class="stat">Completed: <span id="completed">0</span></div>
     </div>
+
+    <div id="controls">
+        <label id="ai-toggle">
+            <input type="checkbox" id="aiCheckbox" onchange="toggleAI()">
+            <strong>🤖 Race vs AI</strong>
+        </label>
+        <button onclick="resetGame()">New Maze</button>
+        <button onclick="showStats()">📊 Stats</button>
+    </div>
+
     <canvas id="game" width="600" height="480"></canvas>
+
     <div id="info">
-        <strong>ARROW KEYS</strong> or <strong>WASD</strong> • Reach the <span style="color:#4ade80;">GREEN</span> exit!
+        <strong>ARROW KEYS</strong> or <strong>WASD</strong> • Reach the <span style="color:#4ade80;">GREEN</span> exit<br>
+        <span id="ai-status" style="font-size:15px; color:#ff8888;">AI disabled • Guaranteed solvable maze</span>
     </div>
-    <button onclick="resetGame()">New Maze</button>
+
+    <!-- Stats Modal -->
+    <div id="modal">
+        <h2>🏆 Your Maze Stats</h2>
+        <p><strong>Total Mazes Completed:</strong> <span id="modalCompleted">0</span></p>
+        <p><strong>Personal Best:</strong> <span id="modalBest">—</span></p>
+        <p><strong>Average Time:</strong> <span id="modalAvg">—</span></p>
+        
+        <h3 style="margin:20px 0 8px; text-align:left;">Recent Completion Times</h3>
+        <div id="timesList" style="max-height: 320px; overflow-y:auto; text-align:left;"></div>
+        
+        <button onclick="hideModal()" style="margin-top:20px; background:#4ade80; color:#111;">Close</button>
+    </div>
 
     <script>
         const canvas = document.getElementById('game');
@@ -75,14 +138,28 @@
         let exit = { x: 0, y: 0 };
         let keys = {};
         let gameWon = false;
+        let aiWon = false;
         let startTime = 0;
         let timerInterval = null;
         let bestTime = localStorage.getItem('mazeBestTime') ? parseFloat(localStorage.getItem('mazeBestTime')) : Infinity;
+        let totalCompleted = parseInt(localStorage.getItem('mazeTotalCompleted') || '0');
+        let completionTimes = JSON.parse(localStorage.getItem('mazeRecentTimes') || '[]');
+        let aiEnabled = localStorage.getItem('mazeAIEnabled') === 'true';
+        let aiPath = [];
+        let aiPos = { x: 0, y: 0 };
+        let aiIndex = 0;
+        let aiInterval = null;
 
-        function updateBestDisplay() {
+        // Update displays
+        function updateHUD() {
             document.getElementById('best').textContent = bestTime === Infinity ? '—' : bestTime.toFixed(1);
+            document.getElementById('completed').textContent = totalCompleted;
+            document.getElementById('aiCheckbox').checked = aiEnabled;
+            document.getElementById('ai-status').textContent = aiEnabled 
+                ? '🤖 AI active • Beat it or retry!' 
+                : 'Guaranteed solvable maze';
         }
-        updateBestDisplay();
+        updateHUD();
 
         function startTimer() {
             startTime = Date.now();
@@ -91,67 +168,100 @@
         }
 
         function updateTimer() {
-            if (gameWon) return;
+            if (gameWon || aiWon) return;
             const elapsed = (Date.now() - startTime) / 1000;
             document.getElementById('timer').textContent = elapsed.toFixed(1);
         }
 
         function stopTimer() {
             clearInterval(timerInterval);
-            const finalTime = (Date.now() - startTime) / 1000;
-            
-            if (finalTime < bestTime) {
-                bestTime = finalTime;
-                localStorage.setItem('mazeBestTime', bestTime);
-                updateBestDisplay();
-            }
-            
-            return finalTime;
+            return (Date.now() - startTime) / 1000;
         }
 
-        // Improved maze generator with more complexity
-        function generateMaze() {
-            maze = Array(ROWS).fill().map(() => Array(COLS).fill(1));
+        // BFS to guarantee solvable + get shortest path for AI
+        function findShortestPath(startX, startY, goalX, goalY) {
+            const queue = [{x: startX, y: startY, path: [{x: startX, y: startY}]}];
+            const visited = Array.from({length: ROWS}, () => Array(COLS).fill(false));
+            visited[startY][startX] = true;
             
-            const startX = 1;
-            const startY = 1;
-            player.x = startX;
-            player.y = startY;
+            const directions = [[0,-1], [1,0], [0,1], [-1,0]];
             
-            function carve(x, y) {
-                maze[y][x] = 0;
+            while (queue.length > 0) {
+                const current = queue.shift();
+                const {x, y, path} = current;
                 
-                const directions = [
-                    [0, -2], [2, 0], [0, 2], [-2, 0]
-                ].sort(() => Math.random() - 0.5);
+                if (x === goalX && y === goalY) return path;
                 
                 for (let [dx, dy] of directions) {
                     const nx = x + dx;
                     const ny = y + dy;
-                    
-                    if (nx > 0 && nx < COLS-1 && ny > 0 && ny < ROWS-1 && maze[ny][nx] === 1) {
-                        // Occasionally add extra walls for more challenge
-                        if (Math.random() > 0.85) {
-                            maze[y + Math.floor(dy/2)][x + Math.floor(dx/2)] = 1;
-                        } else {
-                            maze[y + Math.floor(dy/2)][x + Math.floor(dx/2)] = 0;
-                        }
-                        carve(nx, ny);
+                    if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS && 
+                        maze[ny][nx] === 0 && !visited[ny][nx]) {
+                        visited[ny][nx] = true;
+                        queue.push({
+                            x: nx, 
+                            y: ny, 
+                            path: [...path, {x: nx, y: ny}]
+                        });
                     }
                 }
             }
+            return []; // no path (should never happen)
+        }
+
+        // Generate guaranteed solvable maze (more complex with dead-ends)
+        function generateMaze() {
+            let attempts = 0;
+            do {
+                maze = Array(ROWS).fill().map(() => Array(COLS).fill(1));
+                
+                const startX = 1;
+                const startY = 1;
+                player.x = startX;
+                player.y = startY;
+                
+                // DFS recursive backtracker with extra complexity (dead-ends)
+                function carve(x, y) {
+                    maze[y][x] = 0;
+                    const directions = [[0,-2],[2,0],[0,2],[-2,0]].sort(() => Math.random() - 0.5);
+                    
+                    for (let [dx, dy] of directions) {
+                        const nx = x + dx;
+                        const ny = y + dy;
+                        
+                        if (nx > 0 && nx < COLS-1 && ny > 0 && ny < ROWS-1 && maze[ny][nx] === 1) {
+                            // 20% chance to create a dead-end wall for extra difficulty
+                            if (Math.random() < 0.20) {
+                                maze[y + Math.floor(dy/2)][x + Math.floor(dx/2)] = 1;
+                            } else {
+                                maze[y + Math.floor(dy/2)][x + Math.floor(dx/2)] = 0;
+                            }
+                            carve(nx, ny);
+                        }
+                    }
+                }
+                
+                carve(startX, startY);
+                
+                // Place exit far away
+                exit.x = COLS - 2;
+                exit.y = ROWS - 2;
+                maze[exit.y][exit.x] = 0;
+                
+                // Guarantee path near exit
+                for (let i = 1; i < 7; i++) {
+                    if (maze[ROWS - i][COLS - 2] === 1) maze[ROWS - i][COLS - 2] = 0;
+                    if (maze[ROWS - 2][COLS - i] === 1) maze[ROWS - 2][COLS - i] = 0;
+                }
+                
+                attempts++;
+            } while (findShortestPath(player.x, player.y, exit.x, exit.y).length === 0 && attempts < 10);
             
-            carve(startX, startY);
-            
-            // Place exit far away
-            exit.x = COLS - 2;
-            exit.y = ROWS - 2;
-            maze[exit.y][exit.x] = 0;
-            
-            // Guarantee a path
-            for (let i = 1; i < 6; i++) {
-                if (maze[ROWS-1-i][COLS-2] === 1) maze[ROWS-1-i][COLS-2] = 0;
-                if (maze[ROWS-2][COLS-1-i] === 1) maze[ROWS-2][COLS-1-i] = 0;
+            // If AI enabled, precompute its perfect path
+            if (aiEnabled) {
+                aiPath = findShortestPath(player.x, player.y, exit.x, exit.y);
+                aiPos = { x: player.x, y: player.y };
+                aiIndex = 0;
             }
         }
 
@@ -161,80 +271,147 @@
             // Draw maze
             for (let y = 0; y < ROWS; y++) {
                 for (let x = 0; x < COLS; x++) {
-                    if (maze[y][x] === 1) {
-                        ctx.fillStyle = '#555';
-                        ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
-                    } else {
-                        ctx.fillStyle = '#1a1a1a';
-                        ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
-                    }
+                    ctx.fillStyle = maze[y][x] === 1 ? '#555' : '#1a1a1a';
+                    ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
                 }
             }
             
             // Exit
             ctx.fillStyle = '#4ade80';
             ctx.fillRect(exit.x * CELL_SIZE + 4, exit.y * CELL_SIZE + 4, CELL_SIZE - 8, CELL_SIZE - 8);
-            ctx.fillStyle = '#22c55e';
-            ctx.fillRect(exit.x * CELL_SIZE + 8, exit.y * CELL_SIZE + 8, CELL_SIZE - 16, CELL_SIZE - 16);
             
             // Player
-            const px = player.x * CELL_SIZE + CELL_SIZE/2;
-            const py = player.y * CELL_SIZE + CELL_SIZE/2;
-            
+            const px = player.x * CELL_SIZE + CELL_SIZE / 2;
+            const py = player.y * CELL_SIZE + CELL_SIZE / 2;
             ctx.fillStyle = '#3b82f6';
             ctx.beginPath();
             ctx.arc(px, py, CELL_SIZE/2 - 4, 0, Math.PI * 2);
             ctx.fill();
-            
-            // Eye
+            // eye
             ctx.fillStyle = 'white';
             ctx.beginPath();
-            ctx.arc(px - 6, py - 6, 5, 0, Math.PI * 2);
+            ctx.arc(px - 7, py - 7, 5, 0, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = '#111';
             ctx.beginPath();
-            ctx.arc(px - 5, py - 6, 3, 0, Math.PI * 2);
+            ctx.arc(px - 6, py - 7, 2.5, 0, Math.PI * 2);
             ctx.fill();
             
-            if (gameWon) {
-                ctx.fillStyle = 'rgba(0,0,0,0.75)';
+            // AI (if enabled)
+            if (aiEnabled && !gameWon && !aiWon) {
+                const ax = aiPos.x * CELL_SIZE + CELL_SIZE / 2;
+                const ay = aiPos.y * CELL_SIZE + CELL_SIZE / 2;
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.arc(ax, ay, CELL_SIZE/2 - 4, 0, Math.PI * 2);
+                ctx.fill();
+                // AI "eye"
+                ctx.fillStyle = '#111';
+                ctx.beginPath();
+                ctx.arc(ax + 6, ay - 7, 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Win / Loss overlay
+            if (gameWon || aiWon) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 
-                ctx.fillStyle = '#ffd700';
-                ctx.font = 'bold 52px Arial';
                 ctx.textAlign = 'center';
-                ctx.fillText('🎉 YOU ESCAPED!', canvas.width/2, canvas.height/2 - 30);
+                const elapsed = (Date.now() - startTime) / 1000;
                 
-                const finalTime = (Date.now() - startTime) / 1000;
-                ctx.font = 'bold 28px Arial';
-                ctx.fillStyle = '#fff';
-                ctx.fillText(`Time: ${finalTime.toFixed(1)} seconds`, canvas.width/2, canvas.height/2 + 20);
-                
-                if (finalTime === bestTime) {
-                    ctx.fillStyle = '#ffd700';
-                    ctx.fillText('🏆 NEW BEST TIME!', canvas.width/2, canvas.height/2 + 60);
+                if (gameWon) {
+                    ctx.fillStyle = '#4ade80';
+                    ctx.font = 'bold 52px Arial';
+                    ctx.fillText('🎉 YOU WIN!', canvas.width/2, canvas.height/2 - 60);
+                    
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 28px Arial';
+                    ctx.fillText(`Time: ${elapsed.toFixed(1)}s`, canvas.width/2, canvas.height/2 - 10);
+                    
+                    if (elapsed < bestTime) {
+                        ctx.fillStyle = '#ffd700';
+                        ctx.fillText('🏆 NEW PERSONAL BEST!', canvas.width/2, canvas.height/2 + 35);
+                    }
+                    
+                    if (aiEnabled) {
+                        ctx.fillStyle = '#4ade80';
+                        ctx.font = '22px Arial';
+                        ctx.fillText('You beat the AI!', canvas.width/2, canvas.height/2 + 75);
+                    }
+                } 
+                else if (aiWon) {
+                    ctx.fillStyle = '#ef4444';
+                    ctx.font = 'bold 48px Arial';
+                    ctx.fillText('🤖 AI WINS!', canvas.width/2, canvas.height/2 - 50);
+                    
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 26px Arial';
+                    ctx.fillText(`AI finished in ${elapsed.toFixed(1)}s`, canvas.width/2, canvas.height/2 - 10);
+                    
+                    ctx.font = '22px Arial';
+                    ctx.fillText('You must beat the AI to complete this maze!', canvas.width/2, canvas.height/2 + 30);
+                    ctx.fillText('Press R to retry the SAME maze', canvas.width/2, canvas.height/2 + 65);
                 }
             }
         }
 
         function movePlayer(dx, dy) {
-            if (gameWon) return;
+            if (gameWon || aiWon) return;
             
             const newX = player.x + dx;
             const newY = player.y + dy;
             
-            if (newX < 0 || newX >= COLS || newY < 0 || newY >= ROWS) return;
-            if (maze[newY][newX] === 1) return;
+            if (newX < 0 || newX >= COLS || newY < 0 || newY >= ROWS || maze[newY][newX] === 1) return;
             
             player.x = newX;
             player.y = newY;
             
+            // Player reached exit
             if (player.x === exit.x && player.y === exit.y) {
                 gameWon = true;
-                stopTimer();
+                const finalTime = stopTimer();
+                clearInterval(aiInterval);
+                
+                // Record stats
+                if (finalTime < bestTime) {
+                    bestTime = finalTime;
+                    localStorage.setItem('mazeBestTime', bestTime);
+                }
+                totalCompleted++;
+                completionTimes.push(finalTime);
+                if (completionTimes.length > 20) completionTimes.shift();
+                localStorage.setItem('mazeTotalCompleted', totalCompleted);
+                localStorage.setItem('mazeRecentTimes', JSON.stringify(completionTimes));
+                
+                updateHUD();
+                draw();
+            } else {
+                draw();
             }
+        }
+
+        function startAI() {
+            if (!aiEnabled || aiPath.length === 0) return;
+            clearInterval(aiInterval);
+            aiIndex = 0;
+            aiPos = { x: player.x, y: player.y };
             
-            draw();
+            aiInterval = setInterval(() => {
+                if (gameWon || aiWon || aiIndex >= aiPath.length - 1) return;
+                
+                aiIndex++;
+                aiPos = aiPath[aiIndex];
+                draw();
+                
+                // AI reached exit first
+                if (aiPos.x === exit.x && aiPos.y === exit.y) {
+                    aiWon = true;
+                    const finalTime = stopTimer();
+                    clearInterval(aiInterval);
+                    draw();
+                }
+            }, 165); // AI speed – challenging but beatable
         }
 
         function handleKey(e) {
@@ -250,43 +427,92 @@
                 case 'a': movePlayer(-1, 0); break;
                 case 'arrowright':
                 case 'd': movePlayer(1, 0); break;
+                case 'r':
+                    if (aiWon) retrySameMaze();
+                    break;
             }
         }
 
-        function resetGame() {
+        function retrySameMaze() {
+            // Reset player and AI on SAME maze
             gameWon = false;
-            generateMaze();
+            aiWon = false;
+            player.x = 1;
+            player.y = 1;
+            if (aiEnabled && aiPath.length > 0) {
+                aiPos = { x: 1, y: 1 };
+                aiIndex = 0;
+                startAI();
+            }
             startTimer();
             draw();
         }
 
+        function toggleAI() {
+            aiEnabled = document.getElementById('aiCheckbox').checked;
+            localStorage.setItem('mazeAIEnabled', aiEnabled);
+            updateHUD();
+            // Next maze will use the new setting
+        }
+
+        function resetGame() {
+            gameWon = false;
+            aiWon = false;
+            generateMaze();
+            if (aiEnabled) startAI();
+            startTimer();
+            draw();
+        }
+
+        function showStats() {
+            const modal = document.getElementById('modal');
+            document.getElementById('modalCompleted').textContent = totalCompleted;
+            document.getElementById('modalBest').textContent = bestTime === Infinity ? '—' : bestTime.toFixed(1);
+            
+            const avg = completionTimes.length 
+                ? (completionTimes.reduce((a, b) => a + b, 0) / completionTimes.length).toFixed(1) 
+                : '—';
+            document.getElementById('modalAvg').textContent = avg;
+            
+            const listHTML = completionTimes.length 
+                ? completionTimes.slice(-12).reverse().map((t, i) => 
+                    `<div class="time-item">Maze #${totalCompleted - i} — ${t.toFixed(1)}s</div>`
+                  ).join('')
+                : '<div style="padding:12px; color:#888;">No completions yet</div>';
+            
+            document.getElementById('timesList').innerHTML = listHTML;
+            modal.style.display = 'block';
+        }
+
+        function hideModal() {
+            document.getElementById('modal').style.display = 'none';
+        }
+
         function init() {
             generateMaze();
+            if (aiEnabled) startAI();
             draw();
             
             window.addEventListener('keydown', handleKey);
             window.addEventListener('keyup', e => delete keys[e.key]);
             
-            // Touch swipe
+            // Touch support
             let touchStartX = 0, touchStartY = 0;
             canvas.addEventListener('touchstart', e => {
                 touchStartX = e.changedTouches[0].screenX;
                 touchStartY = e.changedTouches[0].screenY;
             });
-            
             canvas.addEventListener('touchend', e => {
-                if (gameWon) return;
+                if (gameWon || aiWon) return;
                 const dx = e.changedTouches[0].screenX - touchStartX;
                 const dy = e.changedTouches[0].screenY - touchStartY;
-                
-                if (Math.abs(dx) > 40 || Math.abs(dy) > 40) {
-                    if (Math.abs(dx) > Math.abs(dy)) {
-                        movePlayer(dx > 0 ? 1 : -1, 0);
-                    } else {
-                        movePlayer(0, dy > 0 ? 1 : -1);
-                    }
+                if (Math.abs(dx) > 35 || Math.abs(dy) > 35) {
+                    if (Math.abs(dx) > Math.abs(dy)) movePlayer(dx > 0 ? 1 : -1, 0);
+                    else movePlayer(0, dy > 0 ? 1 : -1);
                 }
             });
+            
+            updateHUD();
         }
 
         init();
