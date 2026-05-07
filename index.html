@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Maze Game</title>
+    <title>Hard Maze Escape</title>
     <style>
         body {
             margin: 0;
@@ -13,39 +13,52 @@
             align-items: center;
             justify-content: center;
             height: 100vh;
-            background: #222;
+            background: #1a1a1a;
             font-family: Arial, sans-serif;
             color: white;
         }
         canvas {
-            border: 4px solid #ffd700;
+            border: 5px solid #ff4444;
             image-rendering: pixelated;
-            background: #111;
+            background: #0f0f0f;
+            box-shadow: 0 0 20px rgba(255, 68, 68, 0.5);
         }
-        #info {
-            margin-top: 15px;
-            text-align: center;
+        #hud {
+            display: flex;
+            justify-content: space-between;
+            width: 600px;
+            margin: 15px 0;
+            font-size: 20px;
+        }
+        .stat {
+            background: #333;
+            padding: 8px 16px;
+            border-radius: 8px;
         }
         button {
             margin-top: 10px;
-            padding: 8px 16px;
-            font-size: 16px;
-            background: #ffd700;
-            color: #222;
+            padding: 12px 24px;
+            font-size: 18px;
+            background: #ff4444;
+            color: white;
             border: none;
+            border-radius: 8px;
             cursor: pointer;
         }
         button:hover {
-            background: #ffed4e;
+            background: #ff6666;
         }
     </style>
 </head>
 <body>
-    <h1>🌀 Maze Escape</h1>
-    <canvas id="game" width="480" height="400"></canvas>
+    <h1>🔥 HARD MAZE ESCAPE</h1>
+    <div id="hud">
+        <div class="stat">Time: <span id="timer">0.0</span>s</div>
+        <div class="stat">Best: <span id="best">—</span>s</div>
+    </div>
+    <canvas id="game" width="600" height="480"></canvas>
     <div id="info">
-        Use <strong>ARROW KEYS</strong> or <strong>WASD</strong> to move<br>
-        Reach the <span style="color:#4ade80;">GREEN</span> exit!
+        <strong>ARROW KEYS</strong> or <strong>WASD</strong> • Reach the <span style="color:#4ade80;">GREEN</span> exit!
     </div>
     <button onclick="resetGame()">New Maze</button>
 
@@ -53,28 +66,58 @@
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
         
-        const CELL_SIZE = 40;
-        const COLS = canvas.width / CELL_SIZE;  // 12
-        const ROWS = canvas.height / CELL_SIZE; // 10
+        const CELL_SIZE = 24;
+        const COLS = canvas.width / CELL_SIZE;   // 25
+        const ROWS = canvas.height / CELL_SIZE;  // 20
         
         let maze = [];
         let player = { x: 0, y: 0 };
         let exit = { x: 0, y: 0 };
         let keys = {};
         let gameWon = false;
+        let startTime = 0;
+        let timerInterval = null;
+        let bestTime = localStorage.getItem('mazeBestTime') ? parseFloat(localStorage.getItem('mazeBestTime')) : Infinity;
 
-        // Simple maze generator using DFS (Recursive Backtracker)
+        function updateBestDisplay() {
+            document.getElementById('best').textContent = bestTime === Infinity ? '—' : bestTime.toFixed(1);
+        }
+        updateBestDisplay();
+
+        function startTimer() {
+            startTime = Date.now();
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(updateTimer, 50);
+        }
+
+        function updateTimer() {
+            if (gameWon) return;
+            const elapsed = (Date.now() - startTime) / 1000;
+            document.getElementById('timer').textContent = elapsed.toFixed(1);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+            const finalTime = (Date.now() - startTime) / 1000;
+            
+            if (finalTime < bestTime) {
+                bestTime = finalTime;
+                localStorage.setItem('mazeBestTime', bestTime);
+                updateBestDisplay();
+            }
+            
+            return finalTime;
+        }
+
+        // Improved maze generator with more complexity
         function generateMaze() {
-            // Initialize maze with walls
             maze = Array(ROWS).fill().map(() => Array(COLS).fill(1));
             
-            // Start position
             const startX = 1;
             const startY = 1;
             player.x = startX;
             player.y = startY;
             
-            // Carve path using DFS
             function carve(x, y) {
                 maze[y][x] = 0;
                 
@@ -87,7 +130,12 @@
                     const ny = y + dy;
                     
                     if (nx > 0 && nx < COLS-1 && ny > 0 && ny < ROWS-1 && maze[ny][nx] === 1) {
-                        maze[y + dy/2][x + dx/2] = 0;
+                        // Occasionally add extra walls for more challenge
+                        if (Math.random() > 0.85) {
+                            maze[y + Math.floor(dy/2)][x + Math.floor(dx/2)] = 1;
+                        } else {
+                            maze[y + Math.floor(dy/2)][x + Math.floor(dx/2)] = 0;
+                        }
                         carve(nx, ny);
                     }
                 }
@@ -95,14 +143,16 @@
             
             carve(startX, startY);
             
-            // Set exit at bottom-right area
+            // Place exit far away
             exit.x = COLS - 2;
             exit.y = ROWS - 2;
             maze[exit.y][exit.x] = 0;
             
-            // Ensure a path to exit (simple guarantee)
-            if (maze[ROWS-2][COLS-3] === 1) maze[ROWS-2][COLS-3] = 0;
-            if (maze[ROWS-3][COLS-2] === 1) maze[ROWS-3][COLS-2] = 0;
+            // Guarantee a path
+            for (let i = 1; i < 6; i++) {
+                if (maze[ROWS-1-i][COLS-2] === 1) maze[ROWS-1-i][COLS-2] = 0;
+                if (maze[ROWS-2][COLS-1-i] === 1) maze[ROWS-2][COLS-1-i] = 0;
+            }
         }
 
         function draw() {
@@ -112,51 +162,58 @@
             for (let y = 0; y < ROWS; y++) {
                 for (let x = 0; x < COLS; x++) {
                     if (maze[y][x] === 1) {
-                        ctx.fillStyle = '#666';
+                        ctx.fillStyle = '#555';
                         ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
                     } else {
-                        ctx.fillStyle = '#222';
+                        ctx.fillStyle = '#1a1a1a';
                         ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
                     }
                 }
             }
             
-            // Draw exit
+            // Exit
             ctx.fillStyle = '#4ade80';
-            ctx.fillRect(exit.x * CELL_SIZE + 5, exit.y * CELL_SIZE + 5, CELL_SIZE - 10, CELL_SIZE - 10);
+            ctx.fillRect(exit.x * CELL_SIZE + 4, exit.y * CELL_SIZE + 4, CELL_SIZE - 8, CELL_SIZE - 8);
+            ctx.fillStyle = '#22c55e';
+            ctx.fillRect(exit.x * CELL_SIZE + 8, exit.y * CELL_SIZE + 8, CELL_SIZE - 16, CELL_SIZE - 16);
             
-            // Draw player
-            ctx.fillStyle = '#60a5fa';
+            // Player
+            const px = player.x * CELL_SIZE + CELL_SIZE/2;
+            const py = player.y * CELL_SIZE + CELL_SIZE/2;
+            
+            ctx.fillStyle = '#3b82f6';
             ctx.beginPath();
-            ctx.arc(
-                player.x * CELL_SIZE + CELL_SIZE/2,
-                player.y * CELL_SIZE + CELL_SIZE/2,
-                CELL_SIZE/2 - 6,
-                0, Math.PI * 2
-            );
+            ctx.arc(px, py, CELL_SIZE/2 - 4, 0, Math.PI * 2);
             ctx.fill();
             
-            // Player highlight
+            // Eye
             ctx.fillStyle = 'white';
             ctx.beginPath();
-            ctx.arc(
-                player.x * CELL_SIZE + CELL_SIZE/2 - 6,
-                player.y * CELL_SIZE + CELL_SIZE/2 - 8,
-                5, 0, Math.PI * 2
-            );
+            ctx.arc(px - 6, py - 6, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#111';
+            ctx.beginPath();
+            ctx.arc(px - 5, py - 6, 3, 0, Math.PI * 2);
             ctx.fill();
             
             if (gameWon) {
-                ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                ctx.fillStyle = 'rgba(0,0,0,0.75)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 
                 ctx.fillStyle = '#ffd700';
-                ctx.font = 'bold 48px Arial';
+                ctx.font = 'bold 52px Arial';
                 ctx.textAlign = 'center';
-                ctx.fillText('🎉 YOU WIN!', canvas.width/2, canvas.height/2 - 20);
+                ctx.fillText('🎉 YOU ESCAPED!', canvas.width/2, canvas.height/2 - 30);
                 
-                ctx.font = '24px Arial';
-                ctx.fillText('Press NEW MAZE to play again', canvas.width/2, canvas.height/2 + 30);
+                const finalTime = (Date.now() - startTime) / 1000;
+                ctx.font = 'bold 28px Arial';
+                ctx.fillStyle = '#fff';
+                ctx.fillText(`Time: ${finalTime.toFixed(1)} seconds`, canvas.width/2, canvas.height/2 + 20);
+                
+                if (finalTime === bestTime) {
+                    ctx.fillStyle = '#ffd700';
+                    ctx.fillText('🏆 NEW BEST TIME!', canvas.width/2, canvas.height/2 + 60);
+                }
             }
         }
 
@@ -172,58 +229,46 @@
             player.x = newX;
             player.y = newY;
             
-            // Check win
             if (player.x === exit.x && player.y === exit.y) {
                 gameWon = true;
+                stopTimer();
             }
             
             draw();
         }
 
         function handleKey(e) {
-            if (keys[e.key]) return; // prevent repeat
+            if (keys[e.key]) return;
             keys[e.key] = true;
             
             switch (e.key.toLowerCase()) {
                 case 'arrowup':
-                case 'w':
-                    movePlayer(0, -1);
-                    break;
+                case 'w': movePlayer(0, -1); break;
                 case 'arrowdown':
-                case 's':
-                    movePlayer(0, 1);
-                    break;
+                case 's': movePlayer(0, 1); break;
                 case 'arrowleft':
-                case 'a':
-                    movePlayer(-1, 0);
-                    break;
+                case 'a': movePlayer(-1, 0); break;
                 case 'arrowright':
-                case 'd':
-                    movePlayer(1, 0);
-                    break;
+                case 'd': movePlayer(1, 0); break;
             }
         }
 
         function resetGame() {
             gameWon = false;
             generateMaze();
+            startTimer();
             draw();
         }
 
-        // Initialize
         function init() {
             generateMaze();
             draw();
             
             window.addEventListener('keydown', handleKey);
-            window.addEventListener('keyup', (e) => {
-                delete keys[e.key];
-            });
+            window.addEventListener('keyup', e => delete keys[e.key]);
             
-            // Touch swipe support for mobile
-            let touchStartX = 0;
-            let touchStartY = 0;
-            
+            // Touch swipe
+            let touchStartX = 0, touchStartY = 0;
             canvas.addEventListener('touchstart', e => {
                 touchStartX = e.changedTouches[0].screenX;
                 touchStartY = e.changedTouches[0].screenY;
@@ -231,18 +276,15 @@
             
             canvas.addEventListener('touchend', e => {
                 if (gameWon) return;
-                const touchEndX = e.changedTouches[0].screenX;
-                const touchEndY = e.changedTouches[0].screenY;
+                const dx = e.changedTouches[0].screenX - touchStartX;
+                const dy = e.changedTouches[0].screenY - touchStartY;
                 
-                const dx = touchEndX - touchStartX;
-                const dy = touchEndY - touchStartY;
-                
-                if (Math.abs(dx) > Math.abs(dy)) {
-                    if (dx > 30) movePlayer(1, 0);
-                    else if (dx < -30) movePlayer(-1, 0);
-                } else {
-                    if (dy > 30) movePlayer(0, 1);
-                    else if (dy < -30) movePlayer(0, -1);
+                if (Math.abs(dx) > 40 || Math.abs(dy) > 40) {
+                    if (Math.abs(dx) > Math.abs(dy)) {
+                        movePlayer(dx > 0 ? 1 : -1, 0);
+                    } else {
+                        movePlayer(0, dy > 0 ? 1 : -1);
+                    }
                 }
             });
         }
