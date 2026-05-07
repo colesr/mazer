@@ -1,0 +1,10 @@
+New:
+-more powerups like speed increase or dynamite to blow a hole in a wall so that the user can navigate through
+-the moving background image is interactive in some subtle way
+-several modes of play 1) campaign - user navigates more and more difficult mazes, 2) speed trial - user attempts to decrease time to complete mazes, 
+     3) battle - user faces AI enemy that chases after the user within the boundaries of the maze, pushes against the user trying to slow them, AI enemies can be
+     killed if the user clicks the right click button on the mouse
+
+Fix:
+-AI enemy must navigate within the maze, not moving through walls
+-AI enemy projectiles slow the user down but do not kill
