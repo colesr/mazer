@@ -1,5 +1,5 @@
 // =============================================
-// A MAZE ZING! - Polished + Procedural Campaign
+// A MAZE ZING! - Complete Procedural Version
 // =============================================
 
 let canvas, ctx, bgCanvas, bgCtx;
@@ -92,7 +92,7 @@ function startMusic() {
     }, 280);
 }
 
-// ============== PROCEDURAL MAZE GENERATION ==============
+// ============== PROCEDURAL MAZE ==============
 function seededRandom(seed) {
     let x = Math.sin(seed++) * 10000;
     return x - Math.floor(x);
@@ -107,7 +107,7 @@ function generateMaze(level = 1, seed = null) {
 
     const rng = () => seededRandom(currentSeed++);
 
-    // Core recursive backtracker
+    // Core carving
     function carve(x, y) {
         maze[y][x] = 0;
         const dirs = [[0,-2],[2,0],[0,2],[-2,0]].sort(() => rng()-0.5);
@@ -133,7 +133,7 @@ function generateMaze(level = 1, seed = null) {
                 maze[y][x] = 0;
     }
 
-    // Extra complexity
+    // Complexity
     const complexity = 8 + level * 6;
     for (let i = 0; i < complexity; i++) {
         const x = 2 + Math.floor(rng() * (COLS-4));
@@ -141,12 +141,11 @@ function generateMaze(level = 1, seed = null) {
         if (rng() < 0.65) maze[y][x] = 1;
     }
 
-    // Clear start & exit
     clearArea(1, 1, 3);
     clearArea(COLS-3, ROWS-3, 3);
     maze[exit.y][exit.x] = 0;
 
-    // Safe AI spawn
+    // AI spawn
     ai.x = COLS - 4; ai.y = ROWS - 4;
     if (!isOpen(Math.floor(ai.x), Math.floor(ai.y))) {
         ai.x = COLS - 6; ai.y = ROWS - 5;
@@ -155,10 +154,7 @@ function generateMaze(level = 1, seed = null) {
     placePowerups(5);
 
     // Guarantee solvable
-    if (!isSolvable()) {
-        console.log("Regenerating unsolvable maze...");
-        generateMaze(level, seed || Date.now() + 1);
-    }
+    if (!isSolvable()) generateMaze(level, currentSeed + 1);
 }
 
 function clearArea(cx, cy, radius) {
@@ -188,18 +184,15 @@ function isOpen(x, y) {
     return x >= 0 && x < COLS && y >= 0 && y < ROWS && maze[y][x] === 0;
 }
 
-// ============== SOLVABILITY CHECK (BFS) ==============
 function isSolvable() {
     const visited = Array(ROWS).fill().map(() => Array(COLS).fill(false));
     const queue = [{x: player.x, y: player.y}];
     visited[player.y][player.x] = true;
-
     const dirs = [[0,1],[1,0],[0,-1],[-1,0]];
 
     while (queue.length) {
         const {x, y} = queue.shift();
         if (x === exit.x && y === exit.y) return true;
-
         for (let [dx, dy] of dirs) {
             const nx = x + dx, ny = y + dy;
             if (isOpen(nx, ny) && !visited[ny][nx]) {
@@ -211,7 +204,7 @@ function isSolvable() {
     return false;
 }
 
-// ============== THEMED DRAWING ==============
+// ============== THEMES ==============
 function getTheme(level) {
     const themes = [
         {wall: '#440044', path: '#0a001f', name: "NEON VOID"},
@@ -222,11 +215,11 @@ function getTheme(level) {
     return themes[(level-1) % themes.length];
 }
 
+// ============== DRAW ==============
 function draw() {
     const theme = getTheme(currentLevel);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Maze
     for (let y = 0; y < ROWS; y++) {
         for (let x = 0; x < COLS; x++) {
             ctx.fillStyle = maze[y][x] ? theme.wall : theme.path;
@@ -234,23 +227,19 @@ function draw() {
         }
     }
 
-    // Exit
     ctx.fillStyle = '#00ff88';
     ctx.fillRect(exit.x*CELL_SIZE+4, exit.y*CELL_SIZE+4, CELL_SIZE-8, CELL_SIZE-8);
 
-    // Powerups
     powerups.forEach(p => {
         ctx.fillStyle = p.type === 'speed' ? '#ffff00' : '#00ffff';
         ctx.fillRect(p.x*CELL_SIZE+8, p.y*CELL_SIZE+8, CELL_SIZE-16, CELL_SIZE-16);
     });
 
-    // Player
     ctx.fillStyle = '#00ffff';
     ctx.beginPath();
     ctx.arc(player.x*CELL_SIZE + CELL_SIZE/2, player.y*CELL_SIZE + CELL_SIZE/2, CELL_SIZE/2 - 5, 0, Math.PI*2);
     ctx.fill();
 
-    // AI
     if (aiEnabled) {
         ctx.shadowBlur = 25; ctx.shadowColor = '#ff0088';
         ctx.fillStyle = '#ff0088';
@@ -258,7 +247,6 @@ function draw() {
         ctx.shadowBlur = 0;
     }
 
-    // Projectiles
     ctx.shadowBlur = 12; ctx.shadowColor = '#ff4400';
     ctx.fillStyle = '#ff4400';
     projectiles.forEach(p => ctx.fillRect(p.x-4, p.y-4, 8, 8));
@@ -279,8 +267,30 @@ function draw() {
     }
 }
 
-// ============== GAME LOGIC (unchanged core) ==============
-function movePlayer(dx, dy) { /* ... same as previous polished version ... */ }
+// ============== GAME LOGIC ==============
+function movePlayer(dx, dy) {
+    if (gameWon || gameOver) return;
+    if (Date.now() - lastPlayerMove < 65 / playerSpeed) return;
+
+    const nx = player.x + dx, ny = player.y + dy;
+    if (!isOpen(nx, ny)) return;
+
+    player.x = nx; player.y = ny;
+    lastPlayerMove = Date.now();
+
+    powerups = powerups.filter(p => {
+        if (p.x === player.x && p.y === player.y) {
+            if (p.type === 'speed') playerSpeed = 1.8;
+            else hasStickyGun = true;
+            return false;
+        }
+        return true;
+    });
+
+    checkWin();
+    draw();
+}
+
 function checkWin() {
     if (player.x === exit.x && player.y === exit.y) {
         gameWon = true;
@@ -299,12 +309,84 @@ function checkWin() {
     }
 }
 
-// ... (updateAI, updateProjectiles, gameLoop, startTimer, resetGame, toggleAI remain the same as last version)
+function updateAI() {
+    if (!aiEnabled || gameWon || gameOver) return;
+
+    const dx = player.x - ai.x;
+    const dy = player.y - ai.y;
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+        const dir = Math.sign(dx);
+        if (isOpen(Math.floor(ai.x + dir), Math.floor(ai.y))) ai.x += dir * 0.14;
+    } else {
+        const dir = Math.sign(dy);
+        if (isOpen(Math.floor(ai.x), Math.floor(ai.y + dir))) ai.y += dir * 0.14;
+    }
+
+    if (Math.random() < 0.08) {
+        const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+        const [tx, ty] = dirs[Math.floor(Math.random()*4)];
+        if (isOpen(Math.floor(ai.x + tx), Math.floor(ai.y + ty))) {
+            ai.x += tx * 0.1;
+            ai.y += ty * 0.1;
+        }
+    }
+
+    if (Math.random() < 0.03) {
+        projectiles.push({
+            x: ai.x * CELL_SIZE + CELL_SIZE/2,
+            y: ai.y * CELL_SIZE + CELL_SIZE/2,
+            dx: Math.sign(player.x - ai.x) * 6.5,
+            dy: Math.sign(player.y - ai.y) * 6.5
+        });
+    }
+
+    if (Math.floor(ai.x) === player.x && Math.floor(ai.y) === player.y) {
+        gameOver = true;
+        clearInterval(timerInterval);
+        setTimeout(resetGame, 1400);
+    }
+}
+
+function updateProjectiles() {
+    for (let i = projectiles.length - 1; i >= 0; i--) {
+        const p = projectiles[i];
+        p.x += p.dx; p.y += p.dy;
+
+        const gx = Math.floor(p.x / CELL_SIZE);
+        const gy = Math.floor(p.y / CELL_SIZE);
+
+        if (gx === player.x && gy === player.y) {
+            gameOver = true;
+            clearInterval(timerInterval);
+            setTimeout(resetGame, 1400);
+            return;
+        }
+
+        if (!isOpen(gx, gy) || p.x < 0 || p.x > canvas.width || p.y < 0 || p.y > canvas.height) {
+            projectiles.splice(i, 1);
+        }
+    }
+}
+
+function gameLoop() {
+    updateAI();
+    updateProjectiles();
+    draw();
+}
+
+function startTimer() {
+    startTime = Date.now();
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+        if (gameWon || gameOver) return;
+        document.getElementById('timer').textContent = ((Date.now() - startTime)/1000).toFixed(1);
+    }, 100);
+}
 
 function resetGame(seed = null) {
     gameWon = false; gameOver = false;
     playerSpeed = 1; hasStickyGun = false;
-    const difficulty = Math.min(4, Math.floor((currentLevel-1) / 6) + 1);
     generateMaze(currentLevel, seed);
     startTimer();
     draw();
@@ -314,7 +396,7 @@ function toggleAI() {
     aiEnabled = document.getElementById('aiCheckbox').checked;
 }
 
-// ============== FULL INIT ==============
+// ============== INIT GAME ==============
 function initGame() {
     window.resetGame = resetGame;
     window.toggleAI = toggleAI;
@@ -329,7 +411,6 @@ function initGame() {
     resetGame();
     setInterval(gameLoop, 35);
 
-    // Keyboard
     window.addEventListener('keydown', e => {
         if (gameWon || gameOver) return;
         switch(e.key.toLowerCase()) {
@@ -348,6 +429,3 @@ function initGame() {
         }
     });
 }
-
-// Note: I kept movePlayer, updateAI, etc. from the previous polished version.
-// If you need me to paste the full file with every single function, just say "full file" and I'll expand it.
