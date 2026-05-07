@@ -8,23 +8,35 @@
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
         body {
-            margin: 0; padding: 0;
-            display: flex; flex-direction: column;
-            align-items: center; justify-content: center;
-            height: 100vh; background: #000;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: #000;
             font-family: 'Press Start 2P', Arial, sans-serif;
-            color: white; overflow: hidden;
+            color: white;
+            overflow: hidden;
             position: relative;
         }
 
         #bg-canvas {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 0; opacity: 0.6;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            opacity: 0.6;
         }
 
         h1 {
-            font-size: 48px; margin: 8px 0 12px;
-            z-index: 5; text-shadow: 0 0 30px #ff00ff;
+            font-size: 48px;
+            margin: 8px 0 12px;
+            z-index: 5;
+            text-shadow: 0 0 30px #ff00ff;
             animation: titleGlow 2s infinite alternate;
         }
 
@@ -40,16 +52,26 @@
             z-index: 2;
         }
 
-        #hud { z-index: 4; display: flex; gap: 25px; margin: 10px 0; font-size: 18px; }
-        .stat { background: rgba(0,0,0,0.7); padding: 8px 16px; border: 2px solid #00ffff; }
+        #hud {
+            z-index: 4;
+            display: flex;
+            gap: 25px;
+            margin: 10px 0;
+            font-size: 18px;
+        }
+
+        .stat {
+            background: rgba(0,0,0,0.7);
+            padding: 8px 16px;
+            border: 2px solid #00ffff;
+        }
     </style>
 </head>
 <body>
-
     <canvas id="bg-canvas" width="800" height="600"></canvas>
-
-    <h1>A MAZE ZING!</h1>
     
+    <h1>A MAZE ZING!</h1>
+   
     <div id="hud">
         <div class="stat">Time: <span id="timer">0.0</span>s</div>
         <div class="stat">Best: <span id="best">—</span>s</div>
@@ -57,329 +79,18 @@
     </div>
 
     <div style="z-index:4; margin-bottom:10px;">
-        <label><input type="checkbox" id="aiCheckbox" checked onchange="toggleAI()"> 🤖 ENEMY AI</label>
-        <button onclick="resetGame()">NEW MAZE</button>
+        <label>
+            <input type="checkbox" id="aiCheckbox" checked onchange="toggleAI()">
+            🤖 ENEMY AI
+        </label>
+        <button onclick="resetGame()" style="margin-left:15px; padding:8px 16px; font-family:inherit;">
+            NEW MAZE
+        </button>
     </div>
 
     <canvas id="game" width="600" height="480"></canvas>
 
-    <script>
-        // ============== TRIPPY BACKGROUND ==============
-        const bgCanvas = document.getElementById('bg-canvas');
-        const bgCtx = bgCanvas.getContext('2d');
-        let particles = [];
-
-        class Particle {
-            constructor() { this.reset(); }
-            reset() {
-                this.x = Math.random() * bgCanvas.width;
-                this.y = Math.random() * bgCanvas.height;
-                this.size = Math.random() * 3 + 1;
-                this.speed = Math.random() * 0.8 + 0.3;
-                this.hue = Math.random() * 60 + 180;
-            }
-            update() {
-                this.y += this.speed;
-                this.x += Math.sin(this.y / 50) * 0.6;
-                if (this.y > bgCanvas.height) this.reset();
-            }
-            draw() {
-                bgCtx.fillStyle = `hsla(${this.hue}, 100%, 80%, 0.6)`;
-                bgCtx.fillRect(this.x, this.y, this.size, this.size);
-            }
-        }
-
-        for (let i = 0; i < 120; i++) particles.push(new Particle());
-
-        function animateBG() {
-            bgCtx.fillStyle = 'rgba(0, 0, 10, 0.12)';
-            bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
-            particles.forEach(p => { p.update(); p.draw(); });
-            requestAnimationFrame(animateBG);
-        }
-        animateBG();
-
-        // ============== AUDIO (Trip Hop / Ambient) ==============
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-        function playNote(freq, duration, type = 'sine', vol = 0.2) {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = type;
-            osc.frequency.value = freq;
-            gain.gain.value = vol;
-            osc.connect(gain).connect(audioCtx.destination);
-            osc.start();
-            setTimeout(() => osc.stop(), duration);
-        }
-
-        // Simple trip-hop loop
-        let musicInterval;
-        function startMusic() {
-            if (musicInterval) clearInterval(musicInterval);
-            let beat = 0;
-            musicInterval = setInterval(() => {
-                // Kick
-                if (beat % 4 === 0) playNote(60, 80, 'triangle', 0.4);
-                // Snare
-                if (beat % 8 === 4) playNote(180, 60, 'sawtooth', 0.15);
-                // Ambient pads
-                if (Math.random() > 0.7) playNote(220 + Math.random()*80, 800, 'sine', 0.08);
-                beat++;
-            }, 280);
-        }
-
-        // ============== GAME ==============
-        const canvas = document.getElementById('game');
-        const ctx = canvas.getContext('2d');
-        const CELL_SIZE = 24, COLS = 25, ROWS = 20;
-
-        let maze = [], player = {x:1, y:1}, exit = {x:COLS-2, y:ROWS-2};
-        let gameWon = false, gameOver = false;
-        let startTime = 0, timerInterval = null;
-        let bestTime = localStorage.getItem('mazeBest') ? parseFloat(localStorage.getItem('mazeBest')) : Infinity;
-        let totalCompleted = parseInt(localStorage.getItem('mazeCompleted') || '0');
-        let aiEnabled = true;
-
-        let ai = {x:3, y:3, speed: 0.8};
-        let projectiles = [];
-        let powerups = [];
-        let playerSpeed = 1;
-        let hasStickyGun = false;
-        let keys = {};
-
-        function generateMaze() {
-            maze = Array(ROWS).fill().map(() => Array(COLS).fill(1));
-            player.x = 1; player.y = 1;
-
-            function carve(x, y) {
-                maze[y][x] = 0;
-                const dirs = [[0,-2],[2,0],[0,2],[-2,0]].sort(() => Math.random()-0.5);
-                for (let [dx,dy] of dirs) {
-                    const nx = x+dx, ny = y+dy;
-                    if (nx>0 && nx<COLS-1 && ny>0 && ny<ROWS-1 && maze[ny][nx]===1) {
-                        maze[y+dy/2|0][x+dx/2|0] = 0;
-                        carve(nx, ny);
-                    }
-                }
-            }
-            carve(1,1);
-
-            // Clear areas
-            for (let i=-2; i<=2; i++) for (let j=-2; j<=2; j++) {
-                if (player.x+i>=0 && player.x+i<COLS && player.y+j>=0 && player.y+j<ROWS)
-                    maze[player.y+j][player.x+i] = 0;
-            }
-            exit.x = COLS-2; exit.y = ROWS-2;
-            maze[exit.y][exit.x] = 0;
-
-            // Powerups
-            powerups = [];
-            for (let i = 0; i < 5; i++) {
-                let px, py;
-                do {
-                    px = Math.floor(Math.random()*(COLS-4))+2;
-                    py = Math.floor(Math.random()*(ROWS-4))+2;
-                } while (maze[py][px] === 1);
-                powerups.push({x:px, y:py, type: Math.random() > 0.5 ? 'speed' : 'gun'});
-            }
-
-            ai.x = COLS-4; ai.y = ROWS-4;
-            projectiles = [];
-        }
-
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Maze
-            for (let y=0; y<ROWS; y++) {
-                for (let x=0; x<COLS; x++) {
-                    ctx.fillStyle = maze[y][x] ? '#440044' : '#0a001f';
-                    ctx.fillRect(x*CELL_SIZE, y*CELL_SIZE, CELL_SIZE, CELL_SIZE);
-                }
-            }
-
-            // Exit
-            ctx.fillStyle = '#00ff88';
-            ctx.fillRect(exit.x*CELL_SIZE+4, exit.y*CELL_SIZE+4, CELL_SIZE-8, CELL_SIZE-8);
-
-            // Powerups
-            powerups.forEach(p => {
-                ctx.fillStyle = p.type === 'speed' ? '#ffff00' : '#00ffff';
-                ctx.fillRect(p.x*CELL_SIZE+8, p.y*CELL_SIZE+8, CELL_SIZE-16, CELL_SIZE-16);
-            });
-
-            // Player
-            ctx.fillStyle = '#00ffff';
-            ctx.beginPath();
-            ctx.arc(player.x*CELL_SIZE + CELL_SIZE/2, player.y*CELL_SIZE + CELL_SIZE/2, CELL_SIZE/2 - 5, 0, Math.PI*2);
-            ctx.fill();
-
-            // AI Enemy
-            if (aiEnabled) {
-                ctx.fillStyle = '#ff0088';
-                ctx.fillRect(ai.x*CELL_SIZE + 4, ai.y*CELL_SIZE + 4, CELL_SIZE-8, CELL_SIZE-8);
-            }
-
-            // Projectiles
-            ctx.fillStyle = '#ff4400';
-            projectiles.forEach(p => {
-                ctx.fillRect(p.x-4, p.y-4, 8, 8);
-            });
-
-            if (gameWon) {
-                ctx.fillStyle = 'rgba(0,255,100,0.9)';
-                ctx.font = 'bold 48px "Press Start 2P"';
-                ctx.textAlign = 'center';
-                ctx.fillText('AMAZING!', canvas.width/2, canvas.height/2);
-            }
-            if (gameOver) {
-                ctx.fillStyle = 'rgba(255,0,80,0.9)';
-                ctx.font = 'bold 42px "Press Start 2P"';
-                ctx.textAlign = 'center';
-                ctx.fillText('HIT! RESTART', canvas.width/2, canvas.height/2);
-            }
-        }
-
-        function movePlayer(dx, dy) {
-            if (gameWon || gameOver) return;
-            const nx = player.x + dx, ny = player.y + dy;
-            if (nx<0 || nx>=COLS || ny<0 || ny>=ROWS || maze[ny][nx]===1) return;
-
-            player.x = nx; player.y = ny;
-
-            // Collect powerups
-            powerups = powerups.filter(p => {
-                if (p.x === player.x && p.y === player.y) {
-                    if (p.type === 'speed') playerSpeed = 1.8;
-                    else hasStickyGun = true;
-                    return false;
-                }
-                return true;
-            });
-
-            checkWin();
-            draw();
-        }
-
-        function checkWin() {
-            if (player.x === exit.x && player.y === exit.y) {
-                gameWon = true;
-                const time = (Date.now() - startTime)/1000;
-                if (time < bestTime) bestTime = time;
-                totalCompleted++;
-                localStorage.setItem('mazeBest', bestTime);
-                localStorage.setItem('mazeCompleted', totalCompleted);
-                clearInterval(timerInterval);
-            }
-        }
-
-        // Simple AI chase + shoot
-        function updateAI() {
-            if (!aiEnabled || gameWon || gameOver) return;
-
-            // Chase player
-            const dx = player.x - ai.x;
-            const dy = player.y - ai.y;
-            if (Math.abs(dx) > Math.abs(dy)) {
-                ai.x += Math.sign(dx) * 0.6;
-            } else {
-                ai.y += Math.sign(dy) * 0.6;
-            }
-
-            // Shoot
-            if (Math.random() < 0.03) {
-                projectiles.push({
-                    x: ai.x * CELL_SIZE + CELL_SIZE/2,
-                    y: ai.y * CELL_SIZE + CELL_SIZE/2,
-                    dx: Math.sign(player.x - ai.x) * 5,
-                    dy: Math.sign(player.y - ai.y) * 5
-                });
-            }
-
-            // Collision push
-            if (Math.floor(ai.x) === player.x && Math.floor(ai.y) === player.y) {
-                player.x -= Math.sign(ai.x - player.x);
-                player.y -= Math.sign(ai.y - player.y);
-            }
-        }
-
-        function updateProjectiles() {
-            for (let i = projectiles.length-1; i >= 0; i--) {
-                let p = projectiles[i];
-                p.x += p.dx;
-                p.y += p.dy;
-
-                const gridX = Math.floor(p.x / CELL_SIZE);
-                const gridY = Math.floor(p.y / CELL_SIZE);
-
-                if (gridX === player.x && gridY === player.y) {
-                    gameOver = true;
-                    clearInterval(timerInterval);
-                    setTimeout(resetGame, 1500);
-                    return;
-                }
-
-                if (p.x < 0 || p.x > canvas.width || p.y < 0 || p.y > canvas.height) {
-                    projectiles.splice(i,1);
-                }
-            }
-        }
-
-        function gameLoop() {
-            updateAI();
-            updateProjectiles();
-            draw();
-        }
-
-        function startTimer() {
-            startTime = Date.now();
-            clearInterval(timerInterval);
-            timerInterval = setInterval(() => {
-                if (gameWon || gameOver) return;
-                document.getElementById('timer').textContent = ((Date.now()-startTime)/1000).toFixed(1);
-            }, 80);
-        }
-
-        function resetGame() {
-            gameWon = false; gameOver = false;
-            playerSpeed = 1; hasStickyGun = false;
-            generateMaze();
-            startTimer();
-            draw();
-        }
-
-        function toggleAI() {
-            aiEnabled = document.getElementById('aiCheckbox').checked;
-        }
-
-        // Controls
-        window.addEventListener('keydown', e => {
-            if (gameWon || gameOver) return;
-            switch(e.key.toLowerCase()) {
-                case 'arrowup': case 'w': movePlayer(0, -1); break;
-                case 'arrowdown': case 's': movePlayer(0, 1); break;
-                case 'arrowleft': case 'a': movePlayer(-1, 0); break;
-                case 'arrowright': case 'd': movePlayer(1, 0); break;
-            }
-        });
-
-        // Init
-        document.getElementById('best').textContent = bestTime === Infinity ? '—' : bestTime.toFixed(1);
-        document.getElementById('completed').textContent = totalCompleted;
-        resetGame();
-        setInterval(gameLoop, 50);
-        startMusic();
-
-        // Click to shoot sticky gun
-        canvas.addEventListener('click', () => {
-            if (hasStickyGun && aiEnabled) {
-                ai.speed = 0.3;
-                setTimeout(() => ai.speed = 0.8, 3000);
-                hasStickyGun = false;
-                playNote(800, 150, 'square', 0.3);
-            }
-        });
-    </script>
+    <!-- GAME SCRIPT -->
+    <script src="game.js"></script>
 </body>
 </html>
