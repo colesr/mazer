@@ -16,6 +16,9 @@
             color: white; overflow: hidden;
             position: relative;
             touch-action: none;
+        }
+
+        #game-container {
             transform: scale(0.85);
             transform-origin: top center;
         }
@@ -34,6 +37,7 @@
             box-shadow: 0 0 60px #ff00ff;
             z-index: 2;
             background: #0a001f;
+            display: block;
         }
 
         #hud { z-index: 4; display: flex; gap: 30px; margin: 12px 0; font-size: 20px; }
@@ -59,7 +63,9 @@
         <button onclick="resetGame()" style="margin-left:25px; padding:10px 20px;">NEW MAZE</button>
     </div>
 
-    <canvas id="game" width="800" height="600"></canvas>
+    <div id="game-container">
+        <canvas id="game" width="800" height="600"></canvas>
+    </div>
 
     <script src="game.js"></script>
 </body>
