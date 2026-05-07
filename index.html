@@ -24,10 +24,8 @@
 
         #bg-canvas {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
             z-index: 0;
             opacity: 0.6;
         }
@@ -50,6 +48,7 @@
             image-rendering: pixelated;
             box-shadow: 0 0 50px #ff00ff;
             z-index: 2;
+            background: #0a001f;
         }
 
         #hud {
@@ -65,6 +64,15 @@
             padding: 8px 16px;
             border: 2px solid #00ffff;
         }
+
+        button {
+            font-family: inherit;
+            padding: 8px 16px;
+            background: #000;
+            color: #00ffff;
+            border: 2px solid #00ffff;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -78,19 +86,16 @@
         <div class="stat">Completed: <span id="completed">0</span></div>
     </div>
 
-    <div style="z-index:4; margin-bottom:10px;">
+    <div style="z-index:4; margin-bottom:15px;">
         <label>
             <input type="checkbox" id="aiCheckbox" checked onchange="toggleAI()">
             🤖 ENEMY AI
         </label>
-        <button onclick="resetGame()" style="margin-left:15px; padding:8px 16px; font-family:inherit;">
-            NEW MAZE
-        </button>
+        <button onclick="resetGame()" style="margin-left:20px;">NEW MAZE</button>
     </div>
 
     <canvas id="game" width="600" height="480"></canvas>
 
-    <!-- GAME SCRIPT -->
     <script src="game.js"></script>
 </body>
 </html>
