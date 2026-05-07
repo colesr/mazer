@@ -5,6 +5,9 @@
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
+const bgCanvas = document.getElementById('bg-canvas');
+const bgCtx = bgCanvas.getContext('2d');
+
 const CELL_SIZE = 24;
 const COLS = 25;
 const ROWS = 20;
