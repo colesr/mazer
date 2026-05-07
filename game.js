@@ -1,9 +1,9 @@
 // =============================================
-// A MAZE ZING! - Complete Procedural Version
+// A MAZE ZING! - Large Procedural Mazes
 // =============================================
 
 let canvas, ctx, bgCanvas, bgCtx;
-let maze = [], player = { x: 1, y: 1 }, exit = { x: 23, y: 18 };
+let maze = [], player = { x: 1, y: 1 }, exit = { x: 37, y: 27 };
 let gameWon = false, gameOver = false;
 let startTime = 0, timerInterval = null;
 let bestTime = localStorage.getItem('mazeBest') ? parseFloat(localStorage.getItem('mazeBest')) : Infinity;
@@ -11,12 +11,14 @@ let totalCompleted = parseInt(localStorage.getItem('mazeCompleted') || '0');
 let currentLevel = parseInt(localStorage.getItem('mazeLevel') || '1');
 
 let aiEnabled = true;
-let ai = { x: 21, y: 16 };
+let ai = { x: 35, y: 25 };
 
 let projectiles = [], powerups = [];
 let playerSpeed = 1, hasStickyGun = false, lastPlayerMove = 0;
 
-const CELL_SIZE = 24, COLS = 25, ROWS = 20;
+const CELL_SIZE = 20;
+const COLS = 40;
+const ROWS = 30;
 let currentSeed = Date.now();
 
 // ============== INIT ==============
@@ -25,6 +27,8 @@ document.addEventListener('DOMContentLoaded', () => {
     ctx = canvas.getContext('2d');
     bgCanvas = document.getElementById('bg-canvas');
     bgCtx = bgCanvas.getContext('2d');
+
+    document.getElementById('level').textContent = currentLevel;
 
     initBackground();
     initGame();
@@ -54,7 +58,7 @@ class Particle {
 
 function initBackground() {
     particles = [];
-    for (let i = 0; i < 120; i++) particles.push(new Particle());
+    for (let i = 0; i < 150; i++) particles.push(new Particle());
     animateBG();
 }
 
@@ -92,7 +96,7 @@ function startMusic() {
     }, 280);
 }
 
-// ============== PROCEDURAL MAZE ==============
+// ============== PROCEDURAL MAZE (LARGE) ==============
 function seededRandom(seed) {
     let x = Math.sin(seed++) * 10000;
     return x - Math.floor(x);
@@ -107,7 +111,6 @@ function generateMaze(level = 1, seed = null) {
 
     const rng = () => seededRandom(currentSeed++);
 
-    // Core carving
     function carve(x, y) {
         maze[y][x] = 0;
         const dirs = [[0,-2],[2,0],[0,2],[-2,0]].sort(() => rng()-0.5);
@@ -121,39 +124,35 @@ function generateMaze(level = 1, seed = null) {
     }
     carve(1, 1);
 
-    // Rooms
-    const roomCount = 3 + Math.floor(level / 2);
+    // More rooms for larger maze
+    const roomCount = 6 + Math.floor(level / 2);
     for (let i = 0; i < roomCount; i++) {
-        const rx = 3 + Math.floor(rng() * (COLS - 10));
-        const ry = 3 + Math.floor(rng() * (ROWS - 10));
-        const rw = 3 + Math.floor(rng() * 5);
-        const rh = 3 + Math.floor(rng() * 5);
+        const rx = 4 + Math.floor(rng() * (COLS - 12));
+        const ry = 4 + Math.floor(rng() * (ROWS - 12));
+        const rw = 4 + Math.floor(rng() * 6);
+        const rh = 4 + Math.floor(rng() * 6);
         for (let y = ry; y < ry + rh && y < ROWS; y++)
             for (let x = rx; x < rx + rw && x < COLS; x++)
                 maze[y][x] = 0;
     }
 
-    // Complexity
-    const complexity = 8 + level * 6;
+    // High complexity
+    const complexity = 15 + level * 10;
     for (let i = 0; i < complexity; i++) {
-        const x = 2 + Math.floor(rng() * (COLS-4));
-        const y = 2 + Math.floor(rng() * (ROWS-4));
-        if (rng() < 0.65) maze[y][x] = 1;
+        const x = 3 + Math.floor(rng() * (COLS-6));
+        const y = 3 + Math.floor(rng() * (ROWS-6));
+        if (rng() < 0.7) maze[y][x] = 1;
     }
 
-    clearArea(1, 1, 3);
-    clearArea(COLS-3, ROWS-3, 3);
+    clearArea(1, 1, 4);
+    clearArea(COLS-4, ROWS-4, 4);
     maze[exit.y][exit.x] = 0;
 
-    // AI spawn
-    ai.x = COLS - 4; ai.y = ROWS - 4;
-    if (!isOpen(Math.floor(ai.x), Math.floor(ai.y))) {
-        ai.x = COLS - 6; ai.y = ROWS - 5;
-    }
+    ai.x = COLS - 5; ai.y = ROWS - 5;
+    if (!isOpen(Math.floor(ai.x), Math.floor(ai.y))) ai.x = COLS - 7;
 
-    placePowerups(5);
+    placePowerups(7);
 
-    // Guarantee solvable
     if (!isSolvable()) generateMaze(level, currentSeed + 1);
 }
 
@@ -170,10 +169,10 @@ function placePowerups(count) {
     for (let i = 0; i < count; i++) {
         let px, py, attempts = 0;
         do {
-            px = 3 + Math.floor(seededRandom(currentSeed++) * (COLS - 6));
-            py = 3 + Math.floor(seededRandom(currentSeed++) * (ROWS - 6));
+            px = 4 + Math.floor(seededRandom(currentSeed++) * (COLS - 8));
+            py = 4 + Math.floor(seededRandom(currentSeed++) * (ROWS - 8));
             attempts++;
-        } while (!isOpen(px, py) && attempts < 60);
+        } while (!isOpen(px, py) && attempts < 80);
         if (isOpen(px, py)) {
             powerups.push({x: px, y: py, type: Math.random() > 0.5 ? 'speed' : 'gun'});
         }
@@ -191,10 +190,10 @@ function isSolvable() {
     const dirs = [[0,1],[1,0],[0,-1],[-1,0]];
 
     while (queue.length) {
-        const {x, y} = queue.shift();
-        if (x === exit.x && y === exit.y) return true;
+        const curr = queue.shift();
+        if (curr.x === exit.x && curr.y === exit.y) return true;
         for (let [dx, dy] of dirs) {
-            const nx = x + dx, ny = y + dy;
+            const nx = curr.x + dx, ny = curr.y + dy;
             if (isOpen(nx, ny) && !visited[ny][nx]) {
                 visited[ny][nx] = true;
                 queue.push({x: nx, y: ny});
@@ -232,37 +231,37 @@ function draw() {
 
     powerups.forEach(p => {
         ctx.fillStyle = p.type === 'speed' ? '#ffff00' : '#00ffff';
-        ctx.fillRect(p.x*CELL_SIZE+8, p.y*CELL_SIZE+8, CELL_SIZE-16, CELL_SIZE-16);
+        ctx.fillRect(p.x*CELL_SIZE+6, p.y*CELL_SIZE+6, CELL_SIZE-12, CELL_SIZE-12);
     });
 
     ctx.fillStyle = '#00ffff';
     ctx.beginPath();
-    ctx.arc(player.x*CELL_SIZE + CELL_SIZE/2, player.y*CELL_SIZE + CELL_SIZE/2, CELL_SIZE/2 - 5, 0, Math.PI*2);
+    ctx.arc(player.x*CELL_SIZE + CELL_SIZE/2, player.y*CELL_SIZE + CELL_SIZE/2, CELL_SIZE/2 - 4, 0, Math.PI*2);
     ctx.fill();
 
     if (aiEnabled) {
         ctx.shadowBlur = 25; ctx.shadowColor = '#ff0088';
         ctx.fillStyle = '#ff0088';
-        ctx.fillRect(ai.x*CELL_SIZE + 4, ai.y*CELL_SIZE + 4, CELL_SIZE-8, CELL_SIZE-8);
+        ctx.fillRect(ai.x*CELL_SIZE + 3, ai.y*CELL_SIZE + 3, CELL_SIZE-6, CELL_SIZE-6);
         ctx.shadowBlur = 0;
     }
 
     ctx.shadowBlur = 12; ctx.shadowColor = '#ff4400';
     ctx.fillStyle = '#ff4400';
-    projectiles.forEach(p => ctx.fillRect(p.x-4, p.y-4, 8, 8));
+    projectiles.forEach(p => ctx.fillRect(p.x-5, p.y-5, 10, 10));
     ctx.shadowBlur = 0;
 
     ctx.textAlign = 'center';
     if (gameWon) {
         ctx.fillStyle = 'rgba(0,255,100,0.95)';
-        ctx.font = 'bold 48px "Press Start 2P"';
-        ctx.fillText('AMAZING!', canvas.width/2, canvas.height/2 - 20);
-        ctx.font = 'bold 20px "Press Start 2P"';
-        ctx.fillText(`LEVEL ${currentLevel} COMPLETE`, canvas.width/2, canvas.height/2 + 30);
+        ctx.font = 'bold 52px "Press Start 2P"';
+        ctx.fillText('AMAZING!', canvas.width/2, canvas.height/2 - 30);
+        ctx.font = 'bold 24px "Press Start 2P"';
+        ctx.fillText(`LEVEL ${currentLevel} COMPLETE`, canvas.width/2, canvas.height/2 + 40);
     }
     if (gameOver) {
         ctx.fillStyle = 'rgba(255,0,80,0.95)';
-        ctx.font = 'bold 42px "Press Start 2P"';
+        ctx.font = 'bold 48px "Press Start 2P"';
         ctx.fillText('HIT!', canvas.width/2, canvas.height/2);
     }
 }
@@ -270,7 +269,7 @@ function draw() {
 // ============== GAME LOGIC ==============
 function movePlayer(dx, dy) {
     if (gameWon || gameOver) return;
-    if (Date.now() - lastPlayerMove < 65 / playerSpeed) return;
+    if (Date.now() - lastPlayerMove < 55 / playerSpeed) return;
 
     const nx = player.x + dx, ny = player.y + dy;
     if (!isOpen(nx, ny)) return;
@@ -280,7 +279,7 @@ function movePlayer(dx, dy) {
 
     powerups = powerups.filter(p => {
         if (p.x === player.x && p.y === player.y) {
-            if (p.type === 'speed') playerSpeed = 1.8;
+            if (p.type === 'speed') playerSpeed = 1.9;
             else hasStickyGun = true;
             return false;
         }
@@ -305,6 +304,7 @@ function checkWin() {
 
         document.getElementById('best').textContent = bestTime.toFixed(1);
         document.getElementById('completed').textContent = totalCompleted;
+        document.getElementById('level').textContent = currentLevel;
         clearInterval(timerInterval);
     }
 }
@@ -317,27 +317,27 @@ function updateAI() {
 
     if (Math.abs(dx) > Math.abs(dy)) {
         const dir = Math.sign(dx);
-        if (isOpen(Math.floor(ai.x + dir), Math.floor(ai.y))) ai.x += dir * 0.14;
+        if (isOpen(Math.floor(ai.x + dir), Math.floor(ai.y))) ai.x += dir * 0.16;
     } else {
         const dir = Math.sign(dy);
-        if (isOpen(Math.floor(ai.x), Math.floor(ai.y + dir))) ai.y += dir * 0.14;
+        if (isOpen(Math.floor(ai.x), Math.floor(ai.y + dir))) ai.y += dir * 0.16;
     }
 
-    if (Math.random() < 0.08) {
+    if (Math.random() < 0.09) {
         const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
         const [tx, ty] = dirs[Math.floor(Math.random()*4)];
         if (isOpen(Math.floor(ai.x + tx), Math.floor(ai.y + ty))) {
-            ai.x += tx * 0.1;
-            ai.y += ty * 0.1;
+            ai.x += tx * 0.12;
+            ai.y += ty * 0.12;
         }
     }
 
-    if (Math.random() < 0.03) {
+    if (Math.random() < 0.035) {
         projectiles.push({
             x: ai.x * CELL_SIZE + CELL_SIZE/2,
             y: ai.y * CELL_SIZE + CELL_SIZE/2,
-            dx: Math.sign(player.x - ai.x) * 6.5,
-            dy: Math.sign(player.y - ai.y) * 6.5
+            dx: Math.sign(player.x - ai.x) * 7,
+            dy: Math.sign(player.y - ai.y) * 7
         });
     }
 
@@ -403,13 +403,14 @@ function initGame() {
 
     document.getElementById('best').textContent = bestTime === Infinity ? '—' : bestTime.toFixed(1);
     document.getElementById('completed').textContent = totalCompleted;
+    document.getElementById('level').textContent = currentLevel;
 
     document.body.addEventListener('click', () => {
         if (!musicInterval) startMusic();
     }, { once: true });
 
     resetGame();
-    setInterval(gameLoop, 35);
+    setInterval(gameLoop, 30);
 
     window.addEventListener('keydown', e => {
         if (gameWon || gameOver) return;
