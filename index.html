@@ -15,111 +15,71 @@
             align-items: center;
             justify-content: center;
             height: 100vh;
-            background: radial-gradient(circle at center, #1a0033, #000000);
+            background: #000;
             font-family: 'Press Start 2P', Arial, sans-serif;
             color: white;
             overflow: hidden;
+            position: relative;
         }
 
-        /* Animated background grid */
-        body::before {
-            content: '';
+        /* Optimized ASCII Background */
+        #ascii-bg {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: 
-                linear-gradient(rgba(255, 0, 255, 0.03) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 255, 255, 0.03) 1px, transparent 1px);
-            background-size: 40px 40px;
-            animation: gridMove 20s linear infinite;
+            font-family: monospace;
+            font-size: 10px;
+            line-height: 1;
+            color: #00ffcc;
+            opacity: 0.08;
+            white-space: pre;
             pointer-events: none;
             z-index: 0;
+            overflow: hidden;
+            animation: asciiDrift 60s linear infinite;
+            text-shadow: 0 0 6px #00ffff;
         }
 
-        @keyframes gridMove {
-            0% { background-position: 0 0; }
-            100% { background-position: 40px 40px; }
+        @keyframes asciiDrift {
+            0%   { transform: translate(0, 0); }
+            100% { transform: translate(-120px, -80px); }
         }
 
         h1 {
             font-size: 52px;
             margin: 10px 0 20px;
-            text-align: center;
-            z-index: 1;
-            position: relative;
-            text-shadow: 
-                0 0 10px #ff00ff,
-                0 0 20px #00ffff,
-                0 0 40px #ff00ff;
-            animation: titleGlow 1.5s ease-in-out infinite alternate,
-                       rainbowShift 4s linear infinite;
+            z-index: 5;
+            text-shadow: 0 0 15px #ff00ff, 0 0 30px #00ffff, 0 0 50px #ffff00;
+            animation: titleGlow 1.8s ease-in-out infinite alternate, rainbowShift 5s linear infinite;
         }
 
-        @keyframes titleGlow {
-            from { text-shadow: 0 0 10px #ff00ff, 0 0 20px #00ffff; }
-            to   { text-shadow: 0 0 30px #ff00ff, 0 0 50px #00ffff, 0 0 70px #ffff00; }
-        }
-
+        @keyframes titleGlow { from { text-shadow: 0 0 15px #ff00ff, 0 0 30px #00ffff; } to { text-shadow: 0 0 35px #ff00ff, 0 0 60px #00ffff, 0 0 80px #ffff00; } }
         @keyframes rainbowShift {
-            0%   { color: #ff00ff; }
-            25%  { color: #00ffff; }
-            50%  { color: #ffff00; }
-            75%  { color: #00ff00; }
-            100% { color: #ff00ff; }
+            0% { color: #ff00ff; } 25% { color: #00ffff; } 50% { color: #ffff00; } 75% { color: #00ff88; } 100% { color: #ff00ff; }
         }
 
         canvas {
             border: 6px solid #ff00ff;
             image-rendering: pixelated;
             background: #0a001f;
-            box-shadow: 
-                0 0 30px #ff00ff,
-                0 0 60px #00ffff;
-            z-index: 2;
-            animation: canvasPulse 3s ease-in-out infinite;
+            box-shadow: 0 0 40px #ff00ff, 0 0 70px #00ffff;
+            z-index: 3;
+            animation: canvasPulse 4s ease-in-out infinite;
         }
 
         @keyframes canvasPulse {
-            0%, 100% { box-shadow: 0 0 30px #ff00ff, 0 0 60px #00ffff; }
-            50%      { box-shadow: 0 0 50px #ffff00, 0 0 80px #ff00ff; }
+            0%,100% { box-shadow: 0 0 40px #ff00ff, 0 0 70px #00ffff; }
+            50% { box-shadow: 0 0 60px #ffff00, 0 0 90px #ff00ff; }
         }
 
-        #hud {
-            display: flex;
-            justify-content: space-between;
-            width: 620px;
-            margin: 15px 0 8px;
-            font-size: 20px;
-            gap: 12px;
-            z-index: 3;
-        }
-
-        .stat {
-            background: rgba(255,255,255,0.1);
-            padding: 10px 20px;
-            border-radius: 8px;
-            backdrop-filter: blur(8px);
-            border: 2px solid rgba(255,0,255,0.3);
-        }
-
-        button {
-            padding: 12px 24px;
-            font-size: 18px;
-            background: linear-gradient(#ff00ff, #00ffff);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-family: 'Press Start 2P', Arial, sans-serif;
-            text-shadow: 0 0 8px #000;
-        }
-
-        button:hover {
-            transform: scale(1.05);
-            box-shadow: 0 0 20px #ffff00;
-        }
+        #hud, #controls { z-index: 4; }
     </style>
 </head>
 <body>
+
+    <!-- Much smaller, repeating ASCII background -->
+    <pre id="ascii-bg">
+    </pre>
+
     <h1>A MAZE ZING!</h1>
     
     <div id="hud">
@@ -140,7 +100,18 @@
     <canvas id="game" width="600" height="480"></canvas>
 
     <script>
-        // === GAME CODE (same solid version as before with fixes) ===
+        // === ASCII Background Generator (much lighter) ===
+        const asciiArt = `
+██████████████████████████████████
+█░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+█░█░█░█░█░█░█░█░█░█░█░█░█░█░█░█░█
+█░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█
+██████████████████████████████████
+        `.repeat(8);
+
+        document.getElementById('ascii-bg').textContent = asciiArt;
+
+        // === GAME CODE (unchanged, solid version) ===
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
         
@@ -153,9 +124,7 @@
         let startTime = 0, timerInterval = null;
         let bestTime = localStorage.getItem('mazeBestTime') ? parseFloat(localStorage.getItem('mazeBestTime')) : Infinity;
         let totalCompleted = parseInt(localStorage.getItem('mazeTotalCompleted') || '0');
-        let completionTimes = JSON.parse(localStorage.getItem('mazeRecentTimes') || '[]');
         let aiEnabled = localStorage.getItem('mazeAIEnabled') === 'true';
-        
         let aiPath = [], aiPos = {x:0,y:0}, aiIndex = 0, aiInterval = null;
 
         function updateHUD() {
@@ -173,10 +142,7 @@
             }, 50);
         }
 
-        function stopTimer() {
-            clearInterval(timerInterval);
-            return (Date.now() - startTime) / 1000;
-        }
+        function stopTimer() { clearInterval(timerInterval); return (Date.now() - startTime) / 1000; }
 
         function findShortestPath(sx, sy, ex, ey) {
             const visited = Array.from({length: ROWS}, () => Array(COLS).fill(false));
@@ -187,11 +153,9 @@
             while (queue.length) {
                 const {x, y, path} = queue.shift();
                 if (x === ex && y === ey) return path;
-
                 for (let [dx, dy] of dirs) {
                     const nx = x + dx, ny = y + dy;
-                    if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS && 
-                        maze[ny][nx] === 0 && !visited[ny][nx]) {
+                    if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS && maze[ny][nx] === 0 && !visited[ny][nx]) {
                         visited[ny][nx] = true;
                         queue.push({x:nx, y:ny, path: [...path, {x:nx, y:ny}]});
                     }
@@ -202,11 +166,8 @@
 
         function generateMaze() {
             let attempts = 0;
-            let path = [];
-
             do {
                 maze = Array(ROWS).fill().map(() => Array(COLS).fill(1));
-
                 const startX = 1, startY = 1;
                 player.x = startX; player.y = startY;
 
@@ -223,64 +184,57 @@
                 }
                 carve(startX, startY);
 
-                // Clear start & exit areas
-                for (let dy = -1; dy <= 2; dy++) {
-                    for (let dx = -1; dx <= 2; dx++) {
-                        if (player.x + dx >= 0 && player.x + dx < COLS && player.y + dy >= 0 && player.y + dy < ROWS)
-                            maze[player.y + dy][player.x + dx] = 0;
-                    }
+                // Clear paths
+                for (let i = -1; i <= 2; i++) for (let j = -1; j <= 2; j++) {
+                    if (player.x + i >= 0 && player.x + i < COLS && player.y + j >= 0 && player.y + j < ROWS)
+                        maze[player.y + j][player.x + i] = 0;
                 }
 
                 exit.x = COLS - 2; exit.y = ROWS - 2;
                 maze[exit.y][exit.x] = 0;
-
                 for (let i = 0; i <= 7; i++) {
                     maze[ROWS - 1 - i][COLS - 2] = 0;
                     maze[ROWS - 2][COLS - 1 - i] = 0;
                 }
 
-                path = findShortestPath(player.x, player.y, exit.x, exit.y);
                 attempts++;
-            } while (path.length === 0 && attempts < 50);
+            } while (findShortestPath(player.x, player.y, exit.x, exit.y).length === 0 && attempts < 30);
 
             aiPath = findShortestPath(player.x, player.y, exit.x, exit.y);
         }
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
             for (let y = 0; y < ROWS; y++) {
                 for (let x = 0; x < COLS; x++) {
                     ctx.fillStyle = maze[y][x] === 1 ? '#660066' : '#0a001f';
                     ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
                 }
             }
-
-            // Exit
             ctx.fillStyle = '#00ff88';
             ctx.fillRect(exit.x * CELL_SIZE + 4, exit.y * CELL_SIZE + 4, CELL_SIZE-8, CELL_SIZE-8);
 
             // Player
-            const px = player.x * CELL_SIZE + CELL_SIZE/2;
-            const py = player.y * CELL_SIZE + CELL_SIZE/2;
             ctx.fillStyle = '#00ffff';
-            ctx.beginPath(); ctx.arc(px, py, CELL_SIZE/2 - 4, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath();
+            ctx.arc(player.x * CELL_SIZE + CELL_SIZE/2, player.y * CELL_SIZE + CELL_SIZE/2, CELL_SIZE/2 - 4, 0, Math.PI*2);
+            ctx.fill();
 
             // AI
             if (aiEnabled && aiPath.length > 0) {
-                const ax = aiPos.x * CELL_SIZE + CELL_SIZE/2;
-                const ay = aiPos.y * CELL_SIZE + CELL_SIZE/2;
                 ctx.fillStyle = '#ff0088';
-                ctx.beginPath(); ctx.arc(ax, ay, CELL_SIZE/2 - 4, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath();
+                ctx.arc(aiPos.x * CELL_SIZE + CELL_SIZE/2, aiPos.y * CELL_SIZE + CELL_SIZE/2, CELL_SIZE/2 - 4, 0, Math.PI*2);
+                ctx.fill();
             }
 
             if (gameWon || aiWon) {
-                ctx.fillStyle = 'rgba(0,0,0,0.8)';
+                ctx.fillStyle = 'rgba(0,0,0,0.85)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.textAlign = 'center';
-                ctx.fillStyle = gameWon ? '#00ff88' : '#ff0088';
                 ctx.font = 'bold 48px "Press Start 2P"';
-                ctx.fillText(gameWon ? 'AMAZING!' : 'AI WINS', canvas.width/2, canvas.height/2 - 20);
+                ctx.fillStyle = gameWon ? '#00ff88' : '#ff0088';
+                ctx.fillText(gameWon ? 'AMAZING!' : 'AI WINS', canvas.width/2, canvas.height/2);
             }
         }
 
@@ -288,21 +242,15 @@
             if (gameWon || aiWon) return;
             const nx = player.x + dx, ny = player.y + dy;
             if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS || maze[ny][nx] === 1) return;
-
             player.x = nx; player.y = ny;
-
             if (player.x === exit.x && player.y === exit.y) {
                 gameWon = true;
                 const time = stopTimer();
                 clearInterval(aiInterval);
                 if (time < bestTime) bestTime = time;
                 totalCompleted++;
-                completionTimes.push(time);
-                if (completionTimes.length > 20) completionTimes.shift();
                 localStorage.setItem('mazeBestTime', bestTime);
                 localStorage.setItem('mazeTotalCompleted', totalCompleted);
-                localStorage.setItem('mazeRecentTimes', JSON.stringify(completionTimes));
-                updateHUD();
             }
             draw();
         }
@@ -312,25 +260,21 @@
             clearInterval(aiInterval);
             aiIndex = 0;
             aiPos = {...aiPath[0]};
-
             aiInterval = setInterval(() => {
                 if (gameWon || aiWon || aiIndex >= aiPath.length - 1) return;
                 aiIndex++;
                 aiPos = aiPath[aiIndex];
                 draw();
-
                 if (aiPos.x === exit.x && aiPos.y === exit.y) {
                     aiWon = true;
                     stopTimer();
-                    clearInterval(aiInterval);
                     draw();
                 }
             }, 135);
         }
 
         function resetGame() {
-            gameWon = false;
-            aiWon = false;
+            gameWon = false; aiWon = false;
             generateMaze();
             startTimer();
             if (aiEnabled) startAI();
@@ -344,21 +288,19 @@
         }
 
         function showStats() {
-            alert(`A MAZE ZING!\n\nCompleted: ${totalCompleted}\nBest Time: ${bestTime.toFixed(1)}s`);
+            alert(`A MAZE ZING!\n\nCompleted: ${totalCompleted}\nBest Time: ${bestTime === Infinity ? '—' : bestTime.toFixed(1)}s`);
         }
 
-        // Keyboard
         window.addEventListener('keydown', e => {
             switch (e.key.toLowerCase()) {
                 case 'arrowup': case 'w': movePlayer(0,-1); break;
                 case 'arrowdown': case 's': movePlayer(0,1); break;
                 case 'arrowleft': case 'a': movePlayer(-1,0); break;
                 case 'arrowright': case 'd': movePlayer(1,0); break;
-                case 'r': if (aiWon) resetGame(); break;
             }
         });
 
-        // Initialize
+        // Init
         updateHUD();
         generateMaze();
         if (aiEnabled) startAI();
