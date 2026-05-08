@@ -22,6 +22,9 @@ let maxShieldEnergy = 30;
 let shieldRegenRate = 2;
 let shieldActive = false;
 
+let munchActive = false;
+let munchEndTime = 0;
+
 const CELL_SIZE = 20, COLS = 40, ROWS = 30;
 let currentSeed = Date.now();
 let mouseX = 400, mouseY = 300;
@@ -178,7 +181,7 @@ function placePowerups(count) {
             attempts++;
         } while (!isOpen(px, py) && attempts < 80);
 
-        let type = Math.random() < 0.35 ? 'speed' : Math.random() < 0.65 ? 'gun' : 'shield';
+        let type = Math.random() < 0.2 ? 'speed' : Math.random() < 0.6 ? 'gun' : Math.random() < 0.9 ? 'shield' : 'muncher';
         if (isOpen(px, py)) powerups.push({x: px, y: py, type});
     }
 }
@@ -235,14 +238,26 @@ function draw() {
     ctx.fillRect(exit.x*CELL_SIZE+4, exit.y*CELL_SIZE+4, CELL_SIZE-8, CELL_SIZE-8);
 
     powerups.forEach(p => {
-        ctx.fillStyle = p.type === 'speed' ? '#ffff00' : p.type === 'gun' ? '#00ffff' : '#4488ff';
+        ctx.fillStyle = p.type === 'speed' ? '#ffff00' : p.type === 'gun' ? '#00ffff' : p.type === 'shield' ? '#4488ff' : '#ff8800';
         ctx.fillRect(p.x*CELL_SIZE+6, p.y*CELL_SIZE+6, CELL_SIZE-12, CELL_SIZE-12);
     });
 
-    ctx.fillStyle = '#00ffff';
-    ctx.beginPath();
-    ctx.arc(player.x * CELL_SIZE, player.y * CELL_SIZE, CELL_SIZE/2 - 4, 0, Math.PI*2);
-    ctx.fill();
+    if (munchActive) {
+        // Big munching mouth: open semicircle (Pac-Man style) with glow
+        ctx.shadowBlur = 20; ctx.shadowColor = '#ff8800';
+        ctx.fillStyle = '#00ffff';
+        ctx.beginPath();
+        ctx.arc(player.x * CELL_SIZE, player.y * CELL_SIZE, CELL_SIZE/2 - 2, 0.3, Math.PI*2 - 0.3);  // Open mouth arc
+        ctx.lineTo(player.x * CELL_SIZE, player.y * CELL_SIZE);  // Close to center
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    } else {
+        // Normal player circle
+        ctx.fillStyle = '#00ffff';
+        ctx.beginPath();
+        ctx.arc(player.x * CELL_SIZE, player.y * CELL_SIZE, CELL_SIZE/2 - 4, 0, Math.PI*2);
+        ctx.fill();
+    }
 
     if (shieldActive) {
         const remaining = shieldEnergy / maxShieldEnergy;
@@ -309,8 +324,27 @@ function updatePlayerMovement() {
     let newX = player.x + dx * speed;
     let newY = player.y + dy * speed;
 
-    if (isOpen(newX, player.y)) player.x = newX;
-    if (isOpen(player.x, newY)) player.y = newY;
+    // Allow moving into walls if munch mode is active
+    const canMoveX = munchActive || isOpen(newX, player.y);
+    const canMoveY = munchActive || isOpen(player.x, newY);
+
+    if (canMoveX) player.x = newX;
+    if (canMoveY) player.y = newY;
+
+    // If munch active and on a wall, "eat" it
+    if (munchActive) {
+        const px = Math.floor(player.x);
+        const py = Math.floor(player.y);
+        if (px >= 0 && px < COLS && py >= 0 && py < ROWS && maze[py][px] === 1) {
+            maze[py][px] = 0;  // Eat the wall
+            playNote(150, 80, 'sawtooth', 0.7);  // Crunchy sound effect
+        }
+    }
+
+    // Check timer expiration
+    if (munchActive && Date.now() > munchEndTime) {
+        munchActive = false;
+    }
 
     checkWin();
 }
@@ -376,6 +410,29 @@ function gameLoop() {
     updateProjectiles();
     updatePlayerProjectiles();
     updateShield();
+
+    // Check for powerup collection
+    powerups = powerups.filter(p => {
+        if (Math.floor(player.x) === p.x && Math.floor(player.y) === p.y) {
+            if (p.type === 'speed') {
+                playerSpeed += 2;  // Boost speed
+                playNote(800, 100, 'sine', 0.5);
+            } else if (p.type === 'gun') {
+                // Optional: Add ammo or just a sound (no limit currently)
+                playNote(600, 100, 'triangle', 0.5);
+            } else if (p.type === 'shield') {
+                shieldEnergy = maxShieldEnergy;  // Full recharge
+                playNote(400, 100, 'sine', 0.5);
+            } else if (p.type === 'muncher') {
+                munchActive = true;
+                munchEndTime = Date.now() + 8000;  // 8 seconds
+                playNote(300, 200, 'square', 0.6);  // Activation roar
+            }
+            return false;  // Remove collected powerup
+        }
+        return true;
+    });
+
     draw();
 }
 
@@ -395,6 +452,8 @@ function resetGame(seed = null) {
     hasStickyGun = false;
     shieldEnergy = maxShieldEnergy;
     shieldActive = false;
+    munchActive = false;
+    munchEndTime = 0;
     playerProjectiles = [];
     projectiles = [];
     generateMaze(currentLevel, seed);
