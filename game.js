@@ -181,7 +181,7 @@ function placePowerups(count) {
             attempts++;
         } while (!isOpen(px, py) && attempts < 80);
 
-        let type = Math.random() < 0.2 ? 'speed' : Math.random() < 0.6 ? 'gun' : Math.random() < 0.9 ? 'shield' : 'muncher';
+        let type = Math.random() < 0.15 ? 'speed' : Math.random() < 0.5 ? 'gun' : Math.random() < 0.8 ? 'shield' : 'muncher';
         if (isOpen(px, py)) powerups.push({x: px, y: py, type});
     }
 }
