@@ -390,8 +390,66 @@ function updateAI() { /* full AI logic - simplified for space */
     }
 }
 
-function updateProjectiles() { for (let i = projectiles.length - 1; i >= 0; i--) { /* ... */ } }
-function updatePlayerProjectiles() { for (let i = playerProjectiles.length - 1; i >= 0; i--) { /* ... */ } }
+function updateProjectiles() {
+    for (let i = projectiles.length - 1; i >= 0; i--) {
+        const p = projectiles[i];
+        p.x += p.dx;
+        p.y += p.dy;
+        
+        // Check if projectile is out of bounds
+        if (p.x < 0 || p.x > canvas.width || p.y < 0 || p.y > canvas.height) {
+            projectiles.splice(i, 1);
+            continue;
+        }
+        
+        // Check collision with player (unless shield is active)
+        const playerCenterX = player.x * CELL_SIZE;
+        const playerCenterY = player.y * CELL_SIZE;
+        const dist = Math.hypot(p.x - playerCenterX, p.y - playerCenterY);
+        
+        if (dist < CELL_SIZE / 2 && !shieldActive) {
+            gameOver = true;
+            clearInterval(timerInterval);
+            projectiles.splice(i, 1);
+            setTimeout(resetGame, 1400);
+        } else if (dist < CELL_SIZE / 2 && shieldActive) {
+            // Shield absorbs the projectile
+            shieldEnergy -= 5;
+            projectiles.splice(i, 1);
+        }
+    }
+}
+
+function updatePlayerProjectiles() {
+    for (let i = playerProjectiles.length - 1; i >= 0; i--) {
+        const p = playerProjectiles[i];
+        p.x += p.dx;
+        p.y += p.dy;
+        p.life--;
+        
+        // Check if projectile expired
+        if (p.life <= 0 || p.x < 0 || p.x > canvas.width || p.y < 0 || p.y > canvas.height) {
+            playerProjectiles.splice(i, 1);
+            continue;
+        }
+        
+        // Check collision with AI
+        const aiCenterX = ai.x * CELL_SIZE;
+        const aiCenterY = ai.y * CELL_SIZE;
+        const dist = Math.hypot(p.x - aiCenterX, p.y - aiCenterY);
+        
+        if (dist < CELL_SIZE / 2 && aiEnabled && !gameWon && !gameOver) {
+            ai.health--;
+            playerProjectiles.splice(i, 1);
+            playNote(1200, 100, 'sine', 0.4);
+            
+            if (ai.health <= 0) {
+                ai.stunnedUntil = Date.now() + 3000;
+                ai.health = ai.maxHealth;
+            }
+        }
+    }
+}
 
 function updateShield() {
     if (shieldActive) {
