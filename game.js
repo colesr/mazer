@@ -344,6 +344,7 @@ function updatePlayerMovement() {
     // Check timer expiration
     if (munchActive && Date.now() > munchEndTime) {
         munchActive = false;
+        document.getElementById('munch-indicator').style.display = 'none';
     }
 
     checkWin();
@@ -427,6 +428,7 @@ function gameLoop() {
                 munchActive = true;
                 munchEndTime = Date.now() + 8000;  // 8 seconds
                 playNote(300, 200, 'square', 0.6);  // Activation roar
+                document.getElementById('munch-indicator').style.display = 'block';
             }
             return false;  // Remove collected powerup
         }
@@ -454,6 +456,7 @@ function resetGame(seed = null) {
     shieldActive = false;
     munchActive = false;
     munchEndTime = 0;
+    document.getElementById('munch-indicator').style.display = 'none';
     playerProjectiles = [];
     projectiles = [];
     generateMaze(currentLevel, seed);
